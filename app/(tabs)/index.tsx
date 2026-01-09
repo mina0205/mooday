@@ -1,8 +1,8 @@
-import { View, Text, Button} from 'react-native';
-import { useEffect, useState,useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../src/lib/supabase';
 import { User } from '@supabase/supabase-js';
-import type { Schedule } from '@/src/types/schedule'; //스케줄 타입 분기
+import type { Schedule } from '@/src/types/schedule';
 import { Calendar } from 'react-native-calendars';
 
 const COLORS = {
@@ -17,32 +17,13 @@ export default function HomeTab() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
-  const myUserId = user?.id;
-
-  const myPersonal = schedules.filter(
-    (s) =>
-      s.owner_type === 'PERSONAL' &&
-      s.owner_user_id === myUserId
-  );
-
-  const partnerPersonal = schedules.filter(
-    (s) =>
-      s.owner_type === 'PERSONAL' &&
-      s.owner_user_id !== myUserId
-  );
-
-  const coupleSchedules = schedules.filter(
-    (s) => s.owner_type === 'COUPLE'
-  );
-
-
-
-  //📍 React Native에서 화면 열리자마자 "일정 조회 실행"
+  /* ------------------------------
+   * 1️⃣ 최초 일정 조회
+   * ------------------------------ */
   useEffect(() => {
     fetchSchedules();
   }, []);
 
-  // 일정 조회
   const fetchSchedules = async () => {
     const {
       data: { user },
@@ -52,61 +33,28 @@ export default function HomeTab() {
       setLoading(false);
       return;
     }
+
     setUser(user);
-    //console.log('현재 로그인 유저 ID:', user?.id);
 
-  try {
-    const { data, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .order('start_date', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .order('start_date', { ascending: true });
 
-    if (error) throw error;
-    setSchedules(data ?? []);
-  } catch (e) {
-    console.error('일정 조회 에러:', e);
-  }
-  setLoading(false);
-};
-
-
-  // 일정 추가 
-  const createTestSchedule = async () => {
-    console.log('버튼 눌림');
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const now = new Date().toISOString().slice(0, 10);
-
-    const { error } = await supabase.from('schedules').insert({
-      title: '테스트 일정',
-      start_date: now,
-      end_date: now,
-      owner_type: 'PERSONAL',
-      owner_user_id: user.id,
-    });
-
-    if (error) {
-      console.error(error);
-    } else {
-      fetchSchedules(); 
+      if (error) throw error;
+      setSchedules(data ?? []);
+    } catch (e) {
+      console.error('일정 조회 에러:', e);
     }
+
+    setLoading(false);
   };
 
-   // 캘린더용 데이터 변환하기 
-    const calendarEvents = schedules.map((s) => ({
-      id: s.id,
-      title: s.title,
-      start: s.start_date,
-      end: s.end_date ?? s.start_date,
-    }));
-    console.log('캘린더 이벤트:', calendarEvents);
-
-    // schedules → markedDates 변환 
-    const markedDates = useMemo(() => {
+  /* ------------------------------
+   * 2️⃣ 캘린더 줄(색상) 표시용 데이터
+   * ------------------------------ */
+  const markedDates = useMemo(() => {
     if (!user) return {};
 
     const result: Record<string, any> = {};
@@ -135,7 +83,38 @@ export default function HomeTab() {
     return result;
   }, [schedules, user]);
 
+  /* ------------------------------
+   * 3️⃣ 선택된 날짜의 일정만 필터링
+   * ------------------------------ */
+  const schedulesOfDay = useMemo(() => {
+    if (!selectedDate) return [];
 
+    return schedules.filter(
+      (s) =>
+        s.start_date <= selectedDate &&
+        (s.end_date ?? s.start_date) >= selectedDate
+    );
+  }, [schedules, selectedDate]);
+
+  const mySchedules = schedulesOfDay.filter(
+    (s) =>
+      s.owner_type === 'PERSONAL' &&
+      s.owner_user_id === user?.id
+  );
+
+  const partnerSchedules = schedulesOfDay.filter(
+    (s) =>
+      s.owner_type === 'PERSONAL' &&
+      s.owner_user_id !== user?.id
+  );
+
+  const coupleSchedules = schedulesOfDay.filter(
+    (s) => s.owner_type === 'COUPLE'
+  );
+
+  /* ------------------------------
+   * 로딩 화면
+   * ------------------------------ */
   if (loading) {
     return (
       <View style={{ padding: 20 }}>
@@ -144,57 +123,117 @@ export default function HomeTab() {
     );
   }
 
-  //이 일정이 무슨 색인지 반환하는 함수 
- function getScheduleColor(
-    schedule: Schedule,
-    myUserId: string
-  ) {
-    if (schedule.owner_type === 'COUPLE') {
-      return COLORS.COUPLE;
-    }
-
-    if (schedule.owner_user_id === myUserId) {
-      return COLORS.MY;
-    }
-
-    return COLORS.PARTNER;
-  }
-
-  //날짜+1 하는 함수
-  function addDays(dateString: string, days: number) {
-    const date = new Date(dateString);
-    date.setDate(date.getDate() + days);
-    return date.toISOString().slice(0, 10);
-  }
-
+  /* ------------------------------
+   * 렌더링
+   * ------------------------------ */
   return (
-  <View style={{ padding: 16 }}>
-    
-    {/* 📅 캘린더 영역 (상단/중앙) */}
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* 📅 캘린더 */}
       <Calendar
-      markingType="multi-period"
-      markedDates={markedDates}
-      onDayPress={(day) => {
-        setSelectedDate(day.dateString);
-      }}
-      theme={{
-        calendarBackground: '#000',
-        dayTextColor: '#fff',
-        monthTextColor: '#fff',
-        arrowColor: '#fff',
-      }}
-    />
+        markingType="multi-period"
+        markedDates={markedDates}
+        onDayPress={(day) => {
+          setSelectedDate(day.dateString);
+        }}
+        theme={{
+          calendarBackground: '#000',
+          dayTextColor: '#fff',
+          monthTextColor: '#fff',
+          arrowColor: '#fff',
+          todayTextColor: '#5DA9FF',
+        }}
+      />
 
+      {/* 📌 선택된 날짜 Overlay 카드 */}
+      {selectedDate && (
+        <View style={styles.overlay}>
+          <Text style={styles.dateTitle}>{selectedDate}</Text>
 
-      {/* 📝 하단 메모 영역 */}
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontWeight: 'bold' }}>📝 중요한 메모</Text>
-        <Text style={{ color: '#666', marginTop: 8 }}>
-          아직 메모가 없습니다
-        </Text>
-      </View>
+          <Section
+            title="내 개인 일정"
+            color={COLORS.MY}
+            schedules={mySchedules}
+          />
 
-  </View>
-);
+          <Section
+            title="상대 일정"
+            color={COLORS.PARTNER}
+            schedules={partnerSchedules}
+          />
 
+          <Section
+            title="커플 일정"
+            color={COLORS.COUPLE}
+            schedules={coupleSchedules}
+          />
+        </View>
+      )}
+    </View>
+  );
 }
+
+/* ------------------------------
+ * 공통 섹션 컴포넌트
+ * ------------------------------ */
+function Section({
+  title,
+  color,
+  schedules,
+}: {
+  title: string;
+  color: string;
+  schedules: Schedule[];
+}) {
+  return (
+    <View style={{ marginTop: 12 }}>
+      <Text style={{ color, fontWeight: 'bold' }}>{title}</Text>
+      {schedules.length === 0 && (
+        <Text style={{ color: '#777', marginTop: 4 }}>
+          일정 없음
+        </Text>
+      )}
+      {schedules.map((s) => (
+        <Text key={s.id} style={{ color: '#fff', marginTop: 4 }}>
+          • {s.title}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+/* ------------------------------
+ * 유틸 함수들
+ * ------------------------------ */
+function getScheduleColor(schedule: Schedule, myUserId: string) {
+  if (schedule.owner_type === 'COUPLE') return COLORS.COUPLE;
+  if (schedule.owner_user_id === myUserId) return COLORS.MY;
+  return COLORS.PARTNER;
+}
+
+function addDays(dateString: string, days: number) {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/* ------------------------------
+ * 스타일
+ * ------------------------------ */
+const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#111',
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  dateTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+});
