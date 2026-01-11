@@ -4,6 +4,7 @@ export type OwnerType = 'PERSONAL' | 'COUPLE';
 export interface Schedule {
   id: string;
   title: string;
+  memo: string | null; 
   start_date: string;
   end_date: string;          
   owner_type: OwnerType;
