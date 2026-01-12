@@ -7,11 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../../src/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import type { Schedule } from '@/src/types/schedule';
-import { Calendar } from 'react-native-calendars';
+import { CalendarView } from './components/CalendarView';
+import { DaySchedulePanel } from './components/DaySchedulePanel';
+
 
 /* ------------------------------
  * 색상 상수
@@ -188,39 +190,26 @@ export default function HomeTab() {
    * ------------------------------ */
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* 📅 캘린더 */}
-      <Calendar
-        markingType="multi-period"
-        markedDates={markedDates}
-        onDayPress={(day) => setSelectedDate(day.dateString)}
-        theme={{
-          calendarBackground: '#000',
-          dayTextColor: '#fff',
-          monthTextColor: '#fff',
-          arrowColor: '#fff',
-          todayTextColor: COLORS.MY,
-        }}
-      />
 
+      {/* 📅 캘린더 */}
+      <CalendarView
+        markedDates={markedDates}
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        />
+        
       <Button title="＋ 일정 추가" onPress={() => setIsModalOpen(true)} />
 
       {/* 📌 선택 날짜 카드 */}
       {selectedDate && (
-        <View style={styles.overlay}>
-          <Text style={styles.dateTitle}>{selectedDate}</Text>
-          <Section title="내 개인 일정" color={COLORS.MY} schedules={mySchedules} />
-          <Section
-            title="상대 일정"
-            color={COLORS.PARTNER}
-            schedules={partnerSchedules}
-          />
-          <Section
-            title="커플 일정"
-            color={COLORS.COUPLE}
-            schedules={coupleSchedules}
-          />
-        </View>
-      )}
+        <DaySchedulePanel
+            date={selectedDate}
+            mySchedules={mySchedules}
+            partnerSchedules={partnerSchedules}
+            coupleSchedules={coupleSchedules}
+        />
+        )}
+
 
       {/* ➕ 일정 추가 Modal */}
       <Modal visible={isModalOpen} animationType="slide" transparent>
@@ -344,7 +333,6 @@ function addDays(dateString: string, days: number) {
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
 }
-
 /* ------------------------------
  * 스타일
  * ------------------------------ */

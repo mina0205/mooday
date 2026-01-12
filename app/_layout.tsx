@@ -4,9 +4,8 @@ import { supabase } from '../src/lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function RootLayout() {
-  const router = useRouter();
+  const router = useRouter(); 
   const segments = useSegments();
-
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
