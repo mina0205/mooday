@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '../../src/lib/supabase';
+import { supabase } from '../../../src/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import type { Schedule } from '@/src/types/schedule';
 import { Calendar } from 'react-native-calendars';

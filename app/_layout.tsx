@@ -35,7 +35,7 @@ export default function RootLayout() {
     }
 
     if (session && inAuthGroup) {
-      router.replace('/');
+      router.replace('/calendar');
     }
   }, [session, loading, segments]);
 

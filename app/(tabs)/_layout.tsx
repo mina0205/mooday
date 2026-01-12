@@ -15,21 +15,32 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
-      }}>
+      }}
+    >
+      {/* 캘린더 탭 (기본 탭: 첫번째로 선언됨) */}
       <Tabs.Screen
-        name="index"
+        name="calendar" //폴더 이름 
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: '캘린더',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="calendar" color={color} />
+          ),
         }}
       />
+
+      {/* 위시리스트 탭 */}
       <Tabs.Screen
-        name="explore"
+        name="wishlist"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: '위시리스트',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="heart.fill" color={color} />
+          ),
         }}
       />
+
+
+      
     </Tabs>
   );
 }
