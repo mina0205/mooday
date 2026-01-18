@@ -1,20 +1,17 @@
-/*
-- Calendar 렌더링
-- markedDates 적용
-- 날짜 클릭 → 선택 / 해제 토글
-*/
 import { View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 type Props = {
   markedDates: Record<string, any>;
-  selectedDate: string | null;
-  onSelectDate: (date: string | null) => void;
+  startDate: string | null;
+  endDate: string | null;
+  onSelectDate: (date: string) => void;
 };
 
 export function CalendarView({
   markedDates,
-  selectedDate,
+  startDate,
+  endDate,
   onSelectDate,
 }: Props) {
   return (
@@ -23,12 +20,8 @@ export function CalendarView({
         markingType="multi-period"
         markedDates={markedDates}
         onDayPress={(day) => {
-          // 같은 날짜 누르면 해제
-          if (selectedDate === day.dateString) {
-            onSelectDate(null);
-          } else {
-            onSelectDate(day.dateString);
-          }
+          // 판단은 부모에서!
+          onSelectDate(day.dateString);
         }}
         theme={{
           calendarBackground: '#000',

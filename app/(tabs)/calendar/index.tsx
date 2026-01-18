@@ -6,6 +6,7 @@ import {
   Modal,
   TextInput,
   TouchableOpacity,
+   Alert
 } from 'react-native';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../../src/lib/supabase';
@@ -13,10 +14,10 @@ import { User } from '@supabase/supabase-js';
 import type { Schedule } from '@/src/types/schedule';
 import { CalendarView } from './components/CalendarView';
 import { DaySchedulePanel } from './components/DaySchedulePanel';
-
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 /* ------------------------------
- * 색상 상수
+ * 색상
  * ------------------------------ */
 const COLORS = {
   MY: '#5DA9FF',
@@ -26,128 +27,186 @@ const COLORS = {
 
 export default function HomeTab() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [scheduleType, setScheduleType] = useState<'PERSONAL' | 'COUPLE'>('PERSONAL');
-  const [userCoupleId, setUserCoupleId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [calendarMode, setCalendarMode] = useState<'VIEW' | 'ADD'>('VIEW');
 
-  // Modal 상태
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
+
+  const [scheduleType, setScheduleType] =
+    useState<'PERSONAL' | 'COUPLE'>('PERSONAL');
+
+  const [userCoupleId, setUserCoupleId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
 
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+
+
   /* ------------------------------
-   * 1️⃣ 일정 조회
+   * 일정 조회
    * ------------------------------ */
   useEffect(() => {
     fetchSchedules();
   }, []);
 
   const fetchSchedules = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     setUser(user);
-
     await fetchMyCoupleId();
-    //console.log('auth uid', user.id);
 
-    try {
-      const { data, error } = await supabase
-        .from('schedules')
-        .select('*')
-        .order('start_date', { ascending: true });
+    const { data } = await supabase
+      .from('schedules')
+      .select('*')
+      .order('start_date');
 
-      if (error) throw error;
-      setSchedules(data ?? []);
-    } catch (e) {
-      console.error('일정 조회 에러:', e);
-    }
-
+    setSchedules(data ?? []);
     setLoading(false);
   };
 
   const fetchMyCoupleId = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('couple_members')
       .select('couple_id')
-      .single(); // 커플은 1명당 1개 허용
+      .single();
 
-    if (error) {
-      // 커플이 없는 경우도 error로 떨어질 수 있음
-      console.log('커플 없음 또는 조회 실패', error.message);
-      setUserCoupleId(null);
-      return;
-    }
-
-    setUserCoupleId(data.couple_id);
+    setUserCoupleId(data?.couple_id ?? null);
   };
+
   /* ------------------------------
-   * 2️⃣ 일정 생성 (Modal 저장)
+   * 일정 저장 -> 추가, 수정 분기 
    * ------------------------------ */
-  const handleCreateSchedule = async () => {
-    
-    if (scheduleType === 'COUPLE' && !userCoupleId) {
-      alert('커플이 연결된 후에 커플 일정을 추가할 수 있어요');
-      return;
-    }
-    if (!title.trim()) {
-      alert('제목은 필수입니다');
-      return;
-    }
-    if (!user || !selectedDate) return;
+  const handleSaveSchedule = async () => {
+  if (!user) return;
 
-    const { error } = await supabase.from('schedules').insert({
-      title,
-      memo: memo || null,
-      start_date: selectedDate,
-      end_date: selectedDate,
-      owner_type: scheduleType,
-      owner_user_id: user.id,
-      couple_id: scheduleType === 'COUPLE' ? userCoupleId : null,
-    });
+  if (!title.trim()) {
+    alert('제목은 필수입니다');
+    return;
+  }
 
-    if (error) {
-      console.error(error);
-      alert('일정 저장 실패');
-      return;
-    }
+  if (!startDate) {
+    alert('날짜를 선택해주세요');
+    return;
+  }
 
-    setIsModalOpen(false);
-    setTitle('');
-    setMemo('');
-    setScheduleType('PERSONAL');
-    fetchSchedules();
+  const payload = {
+    title,
+    memo: memo || null,
+    start_date: startDate,
+    end_date: endDate ?? startDate,
+    owner_type: scheduleType,
+    owner_user_id: user.id,
+    couple_id: scheduleType === 'COUPLE' ? userCoupleId : null,
   };
 
+  //  수정
+  if (editingSchedule) {
+    const { error } = await supabase
+      .from('schedules')
+      .update(payload)
+      .eq('id', editingSchedule.id);
+
+    if (error) {
+    console.error('수정 에러:', error);
+      alert('수정 실패');
+      return;
+    }
+
+    setSchedules((prev) =>
+      prev.map((s) =>
+        s.id === editingSchedule.id
+          ? { ...s, ...payload }
+          : s
+      )
+    );
+  }
+  //  추가
+  else {
+    const { error } = await supabase
+      .from('schedules')
+      .insert(payload);
+
+    if (error) {
+    console.error('저장 에러:', error);
+      alert('저장 실패');
+      return;
+    }
+
+    await fetchSchedules();
+  }
+
+  closeModal();
+};
+
   /* ------------------------------
-   * 3️⃣ 캘린더 줄 표시 데이터
+   * 일정 삭제 
+   * ------------------------------ */
+const handleDeleteSchedule = () => {
+//수정 상태가 아니면 '삭제'를 표시하지 않음  
+  if (!editingSchedule) return;
+
+  Alert.alert(
+    '일정 삭제',
+    '이 일정을 삭제할까요?',
+    [
+      {
+        text: '취소',
+        style: 'cancel',
+      },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('schedules')
+            .delete()
+            .eq('id', editingSchedule.id);
+
+          if (error) {
+            console.error('삭제 에러:', error);
+            alert('삭제 실패');
+            return;
+          }
+
+          // 로컬 상태 반영
+          setSchedules((prev) =>
+            prev.filter((s) => s.id !== editingSchedule.id)
+          );
+
+          setEditingSchedule(null);
+          setIsModalOpen(false);   
+          setSelectedDate(null);  
+        },
+      },
+    ],
+  );
+};
+
+  /* ------------------------------
+   * markedDates
    * ------------------------------ */
   const markedDates = useMemo(() => {
     if (!user) return {};
     const result: Record<string, any> = {};
 
-    schedules.forEach((schedule) => {
-      const color = getScheduleColor(schedule, user.id);
-      let current = schedule.start_date;
-      const end = schedule.end_date ?? schedule.start_date;
+    schedules.forEach((s) => {
+      let current = s.start_date;
+      const end = s.end_date ?? s.start_date;
+      const color = getScheduleColor(s, user.id);
 
       while (current <= end) {
-        if (!result[current]) {
-          result[current] = { periods: [] };
-        }
-        result[current].periods.push({
-          startingDay: current === schedule.start_date,
-          endingDay: current === end,
-          color,
-        });
+        if (!result[current]) result[current] = { periods: [] };
+        result[current].periods.push({ color });
         current = addDays(current, 1);
       }
     });
@@ -156,130 +215,207 @@ export default function HomeTab() {
   }, [schedules, user]);
 
   /* ------------------------------
-   * 4️⃣ 선택 날짜 일정 필터링
+   * 날짜 기준 필터링  
    * ------------------------------ */
   const schedulesOfDay = useMemo(() => {
-    if (!selectedDate) return [];
-    return schedules.filter(
-      (s) =>
-        s.start_date <= selectedDate &&
-        (s.end_date ?? s.start_date) >= selectedDate
-    );
-  }, [schedules, selectedDate]);
+  if (!selectedDate) return [];
 
-  const mySchedules = schedulesOfDay.filter(
+  return schedules.filter(
+    (s) =>
+      s.start_date <= selectedDate &&
+      (s.end_date ?? s.start_date) >= selectedDate
+  );
+}, [schedules, selectedDate]);
+
+    const mySchedules = schedulesOfDay.filter(
     (s) => s.owner_type === 'PERSONAL' && s.owner_user_id === user?.id
-  );
-  const partnerSchedules = schedulesOfDay.filter(
-    (s) => s.owner_type === 'PERSONAL' && s.owner_user_id !== user?.id
-  );
-  const coupleSchedules = schedulesOfDay.filter(
-    (s) => s.owner_type === 'COUPLE'
-  );
-
-  if (loading) {
-    return (
-      <View style={{ padding: 20 }}>
-        <Text>일정 불러오는 중...</Text>
-      </View>
     );
-  }
+
+    const partnerSchedules = schedulesOfDay.filter(
+    (s) => s.owner_type === 'PERSONAL' && s.owner_user_id !== user?.id
+    );
+
+    const coupleSchedules = schedulesOfDay.filter(
+    (s) => s.owner_type === 'COUPLE'
+    );
+
 
   /* ------------------------------
-   * 렌더링
+   * 캘린더 클릭
    * ------------------------------ */
+  const handleCalendarPress = (date: string) => {
+    if (calendarMode === 'VIEW') {
+      setSelectedDate(prev => (prev === date ? null : date));
+    }
+  };
+
+/* ------------------------------
+   * closeModal
+   * ------------------------------ */
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setCalendarMode('VIEW');
+    
+    setTitle('');
+    setMemo('');
+    setScheduleType('PERSONAL');
+    setStartDate(null);
+    setEndDate(null);
+    setEditingSchedule(null);
+  };
+
+  if (loading) return <Text>로딩중...</Text>;
+
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
 
-      {/* 📅 캘린더 */}
+        <Button
+        title="로그아웃"
+        onPress={async () => {
+            await supabase.auth.signOut();
+            alert('로그아웃 완료. 앱 다시 실행하세요');
+        }}
+        />
+
       <CalendarView
         markedDates={markedDates}
-        selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
-        />
-        
-      <Button title="＋ 일정 추가" onPress={() => setIsModalOpen(true)} />
+        startDate={startDate}
+        endDate={endDate}
+        onSelectDate={handleCalendarPress}
+      />
 
-      {/* 📌 선택 날짜 카드 */}
-      {selectedDate && (
+      <Button
+        title="＋ 일정 추가"
+        onPress={() => {
+            setCalendarMode('ADD');
+            // 일정 추가 후 이전 입력값 초기화
+            setTitle('');
+            setMemo('');
+            setScheduleType('PERSONAL');
+            setStartDate(null);
+            setEndDate(null);
+
+            setIsModalOpen(true);
+        }}
+    />
+
+      {calendarMode === 'VIEW' && selectedDate && (
         <DaySchedulePanel
             date={selectedDate}
             mySchedules={mySchedules}
             partnerSchedules={partnerSchedules}
             coupleSchedules={coupleSchedules}
+            onPressSchedule={(schedule) => {
+            // 수정 모드 진입
+            setEditingSchedule(schedule);
+            setCalendarMode('ADD');
+            setIsModalOpen(true);
+
+            // 기존 값 세팅
+            setTitle(schedule.title);
+            setMemo(schedule.memo ?? '');
+            setScheduleType(schedule.owner_type);
+            setStartDate(schedule.start_date);
+            setEndDate(schedule.end_date);
+            }}
         />
         )}
 
-
-      {/* ➕ 일정 추가 Modal */}
-      <Modal visible={isModalOpen} animationType="slide" transparent>
+      {/* ---------------- Modal ---------------- */}
+      <Modal visible={isModalOpen} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>일정 추가</Text>
 
-            <Text style={{ marginBottom: 8 }}>일정 타입</Text>
+            {/*  일정 타입 선택 */}
+            <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>
+              일정 타입
+            </Text>
 
-              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-                <TouchableOpacity
-                  onPress={() => setScheduleType('PERSONAL')}
-                  style={{
-                    marginRight: 12,
-                    padding: 8,
-                    borderRadius: 8,
-                    backgroundColor:
-                      scheduleType === 'PERSONAL' ? '#5DA9FF' : '#eee',
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: scheduleType === 'PERSONAL' ? '#fff' : '#000',
-                    }}
-                  >
-                    개인
-                  </Text>
-                </TouchableOpacity>
+            <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+              <TouchableOpacity
+                onPress={() => setScheduleType('PERSONAL')}
+                style={[
+                  styles.typeButton,
+                  scheduleType === 'PERSONAL' && styles.typeButtonPersonal,
+                ]}
+              >
+                <Text style={{ color: scheduleType === 'PERSONAL' ? '#fff' : '#000' }}>
+                  개인
+                </Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setScheduleType('COUPLE')}
-                  style={{
-                    padding: 8,
-                    borderRadius: 8,
-                    backgroundColor:
-                      scheduleType === 'COUPLE' ? '#C77DFF' : '#eee',
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: scheduleType === 'COUPLE' ? '#fff' : '#000',
-                    }}
-                  >
-                    커플
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                onPress={() => setScheduleType('COUPLE')}
+                style={[
+                  styles.typeButton,
+                  scheduleType === 'COUPLE' && styles.typeButtonCouple,
+                ]}
+              >
+                <Text style={{ color: scheduleType === 'COUPLE' ? '#fff' : '#000' }}>
+                  커플
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-            <Text>제목 *</Text>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              placeholder="예: 데이트"
-              style={styles.input}
-            />
+            {/* 날짜 선택 */}
+            <Text style={{ fontWeight: 'bold' }}>
+              날짜 <Text style={{ color: 'red' }}>*</Text>
+            </Text>
 
-            <Text>메모</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => {
+                console.log('start picker open');
+                setShowStartPicker(true);
+            }}
+            >
+              <Text>시작 날짜: {startDate ?? '선택'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => {
+                if (!startDate) {
+                  alert('시작 날짜를 먼저 선택하세요');
+                  return;
+                }
+                setShowEndPicker(true);
+              }}
+            >
+              <Text>종료 날짜: {endDate ?? '선택'}</Text>
+            </TouchableOpacity>
+
+            <Text style={{ fontWeight: 'bold' }}>
+                제목 <Text style={{ color: 'red' }}>*</Text>
+            </Text>
+            <TextInput value={title} onChangeText={setTitle} style={styles.input} />
+
+            <Text style={{ fontWeight: 'bold' }}>
+                메모
+            </Text>
             <TextInput
               value={memo}
               onChangeText={setMemo}
-              placeholder="상세 메모 (선택)"
               multiline
               style={[styles.input, { height: 80 }]}
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={() => setIsModalOpen(false)}>
+            {editingSchedule && (
+                <TouchableOpacity
+                onPress={handleDeleteSchedule}
+                style={{ marginRight: 'auto' }}
+                >
+                <Text style={{ color: 'red', fontWeight: 'bold' }}>
+                    삭제
+                </Text>
+                </TouchableOpacity>
+            )}
+              <TouchableOpacity onPress={closeModal}>
                 <Text>취소</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleCreateSchedule}>
+              <TouchableOpacity onPress={handleSaveSchedule}>
                 <Text style={{ color: COLORS.MY, fontWeight: 'bold' }}>
                   저장
                 </Text>
@@ -287,34 +423,61 @@ export default function HomeTab() {
             </View>
           </View>
         </View>
-      </Modal>
-    </View>
-  );
-}
 
-/* ------------------------------
- * 공통 컴포넌트
- * ------------------------------ */
-function Section({
-  title,
-  color,
-  schedules,
-}: {
-  title: string;
-  color: string;
-  schedules: Schedule[];
-}) {
-  return (
-    <View style={{ marginTop: 12 }}>
-      <Text style={{ color, fontWeight: 'bold' }}>{title}</Text>
-      {schedules.length === 0 && (
-        <Text style={{ color: '#777', marginTop: 4 }}>일정 없음</Text>
-      )}
-      {schedules.map((s) => (
-        <Text key={s.id} style={{ color: '#fff', marginTop: 4 }}>
-          • {s.title}
-        </Text>
-      ))}
+        {/* ===== iOS Date Picker 영역 ===== */}
+        {showStartPicker && (
+        <View style={styles.pickerWrapper}>
+            <DateTimePicker
+            value={startDate ? new Date(startDate) : new Date()}
+            mode="date"
+            display="spinner"
+            onChange={(event, date) => {
+                if (event.type === 'dismissed') {
+                setShowStartPicker(false);
+                return;
+                }
+
+                setShowStartPicker(false);
+
+                if (date) {
+                const formatted = date.toISOString().slice(0, 10);
+                setStartDate(formatted);
+
+                if (!endDate || endDate < formatted) {
+                    setEndDate(formatted);
+                }
+                }
+            }}
+            />
+        </View>
+        )}
+
+        {showEndPicker && (
+        <View style={styles.pickerWrapper}>
+            <DateTimePicker
+            value={endDate ? new Date(endDate) : new Date(startDate ?? new Date())}
+            mode="date"
+            display="spinner"
+            minimumDate={startDate ? new Date(startDate) : undefined}
+            onChange={(event, date) => {
+                if (event.type === 'dismissed') {
+                setShowEndPicker(false);
+                return;
+                }
+
+                setShowEndPicker(false);
+
+                if (date) {
+                const formatted = date.toISOString().slice(0, 10);
+                setEndDate(formatted);
+                }
+            }}
+            />
+        </View>
+        )}
+
+      </Modal>
+
     </View>
   );
 }
@@ -329,30 +492,15 @@ function getScheduleColor(schedule: Schedule, myUserId: string) {
 }
 
 function addDays(dateString: string, days: number) {
-  const date = new Date(dateString);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  const d = new Date(dateString);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
+
 /* ------------------------------
  * 스타일
  * ------------------------------ */
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#111',
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  dateTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -374,12 +522,39 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 8,
-    marginTop: 4,
     marginBottom: 12,
+  },
+  dateButton: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 16,
   },
+  typeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#eee',
+    marginRight: 12,
+  },
+  typeButtonPersonal: {
+    backgroundColor: COLORS.MY,
+  },
+  typeButtonCouple: {
+    backgroundColor: COLORS.COUPLE,
+  },
+  pickerWrapper: {
+  backgroundColor: '#fff',
+  marginTop: 12,
+  borderRadius: 12,
+  overflow: 'hidden',
+},
+
+
 });

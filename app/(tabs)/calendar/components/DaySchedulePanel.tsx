@@ -3,7 +3,7 @@
 - 내 일정 / 상대 일정 / 커플 일정 표시
 - “일정 없음” 처리
 */
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions,TouchableOpacity } from 'react-native';
 import type { Schedule } from '@/src/types/schedule';
 import { useEffect, useRef } from 'react';
 
@@ -13,6 +13,7 @@ type Props = {
   mySchedules: Schedule[];
   partnerSchedules: Schedule[];
   coupleSchedules: Schedule[];
+  onPressSchedule: (schedule: Schedule) => void;
 };
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -21,6 +22,7 @@ export function DaySchedulePanel({
   mySchedules,
   partnerSchedules,
   coupleSchedules,
+  onPressSchedule,
 }: Props) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -43,9 +45,27 @@ export function DaySchedulePanel({
     >
       <Text style={styles.date}>{date}</Text>
 
-      <Section title="내 일정" color="#5DA9FF" schedules={mySchedules} />
-      <Section title="상대 일정" color="#7ED957" schedules={partnerSchedules} />
-      <Section title="커플 일정" color="#C77DFF" schedules={coupleSchedules} />
+      <Section
+        title="내 일정"
+        color="#5DA9FF"
+        schedules={mySchedules}
+        onPressSchedule={onPressSchedule}
+      />
+
+      <Section
+        title="상대 일정"
+        color="#7ED957"
+        schedules={partnerSchedules}
+        onPressSchedule={onPressSchedule}
+      />
+
+      <Section
+        title="커플 일정"
+        color="#C77DFF"
+        schedules={coupleSchedules}
+        onPressSchedule={onPressSchedule}
+      />
+
     </Animated.View>
   );
 }
@@ -55,10 +75,13 @@ function Section({
   title,
   color,
   schedules,
+  onPressSchedule,
 }: {
   title: string;
   color: string;
   schedules: Schedule[];
+  onPressSchedule: (schedule: Schedule) => void;
+
 }) {
   return (
     <View style={{ marginTop: 12 }}>
@@ -69,10 +92,17 @@ function Section({
       )}
 
       {schedules.map((s) => (
-        <Text key={s.id} style={{ color: '#fff', marginTop: 4 }}>
+      <TouchableOpacity
+        key={s.id}
+        onPress={() => onPressSchedule(s)}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: '#fff', marginTop: 4 }}>
           • {s.title}
         </Text>
-      ))}
+      </TouchableOpacity>
+    ))}
+
     </View>
   );
 }
