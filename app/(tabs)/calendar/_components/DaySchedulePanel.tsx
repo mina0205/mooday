@@ -43,8 +43,10 @@ export function DaySchedulePanel({
         },
       ]}
     >
-      <Text style={styles.date}>{date}</Text>
-
+      <TouchableOpacity>
+        <Text style={styles.date}>{date}</Text>
+      </TouchableOpacity>
+      
       <Section
         title="내 일정"
         color="#5DA9FF"

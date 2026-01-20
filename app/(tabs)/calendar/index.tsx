@@ -12,8 +12,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../../src/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import type { Schedule } from '@/src/types/schedule';
-import { CalendarView } from './components/CalendarView';
-import { DaySchedulePanel } from './components/DaySchedulePanel';
+import { CalendarView } from './_components/CalendarView';
+import { DaySchedulePanel } from './_components/DaySchedulePanel';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 /* ------------------------------
@@ -278,9 +278,9 @@ const handleDeleteSchedule = () => {
         />
 
       <CalendarView
-        markedDates={markedDates}
-        startDate={startDate}
-        endDate={endDate}
+        //markedDates={markedDates}
+        schedules={schedules} 
+        myUserId={user?.id ?? ''}
         onSelectDate={handleCalendarPress}
       />
 
@@ -329,7 +329,7 @@ const handleDeleteSchedule = () => {
 
             {/*  일정 타입 선택 */}
             <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>
-              일정 타입
+              일정 타입 <Text style={{ color: 'red' }}>*</Text>
             </Text>
 
             <View style={{ flexDirection: 'row', marginBottom: 16 }}>
