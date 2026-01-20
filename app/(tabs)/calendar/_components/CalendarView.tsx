@@ -22,6 +22,13 @@ function hasScheduleOnDate(schedule: Schedule, date: string) {
   );
 }
 
+function isMultiDay(schedule: Schedule) {
+  return (
+    schedule.end_date &&
+    schedule.end_date !== schedule.start_date
+  );
+}
+
 /* 바 색상 */
 function getColor(s: Schedule, myUserId: string) {
   if (s.owner_type === 'COUPLE') return COLORS.COUPLE;
@@ -45,9 +52,15 @@ export function CalendarView({
       dayComponent={({ date, state }) => {
         if (!date) return null;
 
-        const daySchedules = schedules.filter((s) =>
-          hasScheduleOnDate(s, date.dateString)
-        );
+        const daySchedules = schedules.filter((s) =>{
+          // 단일 일정 → 그대로 표시
+          if (!isMultiDay(s)) {
+            return s.start_date === date.dateString;
+          }
+
+          // 멀티데이 일정 → 시작 날짜에만 표시
+          return s.start_date === date.dateString;
+      });
 
         return (
           <TouchableOpacity
@@ -60,24 +73,23 @@ export function CalendarView({
             {/* 날짜 */}
             <Text style={styles.dayNumber}>{date.day}</Text>
 
-            {/* 바 + 텍스트 묶음 */}
-            {daySchedules.slice(0, 2).map((s) => (
-              <View key={s.id} style={styles.item}>
-                <View
-                  style={[
-                    styles.bar,
-                    { backgroundColor: getColor(s, myUserId) },
-                  ]}
-                />
-                <Text style={styles.title} numberOfLines={1}>
-                  {s.title}
-                </Text>
-              </View>
+            {/* 바 + 텍스트 묶음( bar + title을 하나의 pill로 ) */}
+            {daySchedules.slice(0, 3).map((s) => (
+             <View
+              style={[
+                styles.barPill,
+                { backgroundColor: getColor(s, myUserId) },
+              ]}
+            >
+              <Text style={styles.pillText} numberOfLines={1}>
+                {s.title}
+              </Text>
+            </View> 
             ))}
 
-            {daySchedules.length > 2 && (
+            {daySchedules.length > 3 && (
               <Text style={styles.more}>
-                +{daySchedules.length - 2}
+                +{daySchedules.length - 3}
               </Text>
             )}
           </TouchableOpacity>
@@ -88,6 +100,18 @@ export function CalendarView({
 }
 
 const styles = StyleSheet.create({
+  barPill: {
+  width: '100%',
+  height: 14,
+  borderRadius: 7,
+  justifyContent: 'center',
+  paddingHorizontal: 4,
+},
+pillText: {
+  fontSize: 9,
+  color: '#000',
+  fontWeight: '600',
+},
   dayCell: {
     minHeight: 80,
     paddingTop: 4,
@@ -97,21 +121,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     marginBottom: 2,
-  },
-  item: {
-    width: '90%',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  bar: {
-    width: '100%',
-    height: 4,
-    borderRadius: 2,
-  },
-  title: {
-    fontSize: 10,
-    color: '#ddd',
-    marginTop: 2,
   },
   more: {
     fontSize: 9,
