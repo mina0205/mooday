@@ -7,7 +7,6 @@ import { View, Text, StyleSheet, Animated, Dimensions,TouchableOpacity } from 'r
 import type { Schedule } from '@/src/types/schedule';
 import { useEffect, useRef } from 'react';
 
-
 type Props = {
   date: string;
   mySchedules: Schedule[];

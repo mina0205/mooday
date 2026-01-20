@@ -195,24 +195,7 @@ const handleDeleteSchedule = () => {
   /* ------------------------------
    * markedDates
    * ------------------------------ */
-  const markedDates = useMemo(() => {
-    if (!user) return {};
-    const result: Record<string, any> = {};
-
-    schedules.forEach((s) => {
-      let current = s.start_date;
-      const end = s.end_date ?? s.start_date;
-      const color = getScheduleColor(s, user.id);
-
-      while (current <= end) {
-        if (!result[current]) result[current] = { periods: [] };
-        result[current].periods.push({ color });
-        current = addDays(current, 1);
-      }
-    });
-
-    return result;
-  }, [schedules, user]);
+  
 
   /* ------------------------------
    * 날짜 기준 필터링  
