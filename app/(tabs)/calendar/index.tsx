@@ -301,6 +301,9 @@ const handleDeleteSchedule = () => {
             setStartDate(schedule.start_date);
             setEndDate(schedule.end_date);
             }}
+            onClose={() => {
+                setSelectedDate(null);   
+            }}
         />
         )}
 

@@ -13,8 +13,8 @@ type Props = {
   partnerSchedules: Schedule[];
   coupleSchedules: Schedule[];
   onPressSchedule: (schedule: Schedule) => void;
+  onClose: () => void; 
 };
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export function DaySchedulePanel({
   date,
@@ -22,7 +22,9 @@ export function DaySchedulePanel({
   partnerSchedules,
   coupleSchedules,
   onPressSchedule,
+  onClose,
 }: Props) {
+  const { height: SCREEN_HEIGHT } = Dimensions.get('window');
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
@@ -33,40 +35,34 @@ export function DaySchedulePanel({
     }).start();
   }, [date]);
 
+  // 패널 닫기 버튼 
+  const closePanel = () => {
+    Animated.timing(translateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
+
   return (
     <Animated.View
       style={[
         styles.container,
-        {
-          transform: [{ translateY }],
-        },
+        { transform: [{ translateY }] },
       ]}
     >
-      <TouchableOpacity>
+      <View style={styles.header}>
         <Text style={styles.date}>{date}</Text>
-      </TouchableOpacity>
-      
-      <Section
-        title="내 일정"
-        color="#5DA9FF"
-        schedules={mySchedules}
-        onPressSchedule={onPressSchedule}
-      />
+        <TouchableOpacity onPress={closePanel} hitSlop={10}>
+          <Text style={styles.close}>✕</Text>
+        </TouchableOpacity>
+      </View>
 
-      <Section
-        title="상대 일정"
-        color="#7ED957"
-        schedules={partnerSchedules}
-        onPressSchedule={onPressSchedule}
-      />
-
-      <Section
-        title="커플 일정"
-        color="#C77DFF"
-        schedules={coupleSchedules}
-        onPressSchedule={onPressSchedule}
-      />
-
+      <Section title="내 일정" color="#5DA9FF" schedules={mySchedules} onPressSchedule={onPressSchedule} />
+      <Section title="상대 일정" color="#7ED957" schedules={partnerSchedules} onPressSchedule={onPressSchedule} />
+      <Section title="커플 일정" color="#C77DFF" schedules={coupleSchedules} onPressSchedule={onPressSchedule} />
     </Animated.View>
   );
 }
@@ -125,4 +121,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
   },
+  header: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 8,
+},
+
+close: {
+  color: '#aaa',
+  fontSize: 20,
+  fontWeight: 'bold',
+},
 });

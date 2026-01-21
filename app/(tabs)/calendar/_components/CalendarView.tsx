@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Calendar } from 'react-native-calendars';
 import type { Schedule } from '@/src/types/schedule';
 
+const MAX_BAR_LINES = 4;
+
 const COLORS = {
   MY: '#5DA9FF',
   PARTNER: '#7ED957',
@@ -28,9 +30,8 @@ function addDays(dateString: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/* +n */
-function getScheduleCountByDate(schedules: Schedule[]) {
-  const countMap: Record<string, number> = {};
+function groupSchedulesByDate(schedules: Schedule[]) {
+  const map: Record<string, Schedule[]> = {};
 
   schedules.forEach((s) => {
     const start = s.start_date;
@@ -38,13 +39,15 @@ function getScheduleCountByDate(schedules: Schedule[]) {
 
     let current = start;
     while (current <= end) {
-      countMap[current] = (countMap[current] ?? 0) + 1;
+      if (!map[current]) map[current] = [];
+      map[current].push(s);
       current = addDays(current, 1);
     }
   });
 
-  return countMap;
+  return map;
 }
+
 
 export function CalendarView({
   schedules,
@@ -52,7 +55,7 @@ export function CalendarView({
   onSelectDate,
 }: Props) {
 
-  /* 1️⃣ 일정별 lane 고정 (같은 일정 = 같은 줄) */
+  /* 일정별 lane 고정 (같은 일정 = 같은 줄) */
   const scheduleLaneMap = useMemo(() => {
     const map = new Map<string, number>();
     let lane = 0;
@@ -67,41 +70,34 @@ export function CalendarView({
     return map;
   }, [schedules]);
 
-  /* 2️⃣ multi-period용 markedDates 생성 */
+  /* multi-period용 markedDates 생성 */
   const markedDates = useMemo(() => {
   const result: Record<string, any> = {};
-  const countByDate = getScheduleCountByDate(schedules);
+  const byDate = groupSchedulesByDate(schedules);
 
-  schedules.forEach((s) => {
-    const start = s.start_date;
-    const end = s.end_date ?? s.start_date;
-    const color = getColor(s, myUserId);
+  Object.entries(byDate).forEach(([date, daySchedules]) => {
+    // 우선순위 정렬 (선택)
+    const sorted = daySchedules.sort((a, b) => {
+      if (a.owner_type === 'COUPLE' && b.owner_type !== 'COUPLE') return -1;
+      if (a.owner_type !== 'COUPLE' && b.owner_type === 'COUPLE') return 1;
+      return a.start_date.localeCompare(b.start_date);
+    });
 
-    let current = start;
+    const visible = sorted.slice(0, MAX_BAR_LINES);
+    const hiddenCount = sorted.length - visible.length;
 
-    while (current <= end) {
-      if (!result[current]) {
-        result[current] = { periods: [] };
-      }
+    result[date] = {
+      periods: visible.map((s) => ({
+        startingDay: s.start_date === date,
+        endingDay: (s.end_date ?? s.start_date) === date,
+        color: getColor(s, myUserId),
+      })),
+    };
 
-      result[current].periods.push({
-        startingDay: current === start,
-        endingDay: current === end,
-        color,
-      });
-
-      current = addDays(current, 1);
-    }
-  });
-
-  // 🔹 4개 이상인 날짜에 "marked" 추가
-  Object.entries(countByDate).forEach(([date, count]) => {
-    if (count >= 4) {
-      result[date] = {
-        ...(result[date] ?? {}),
-        marked: true,
-        dotColor: '#f2f4f6ff', // +n 힌트용
-      };
+    // 초과 일정 힌트
+    if (hiddenCount > 0) {
+      result[date].marked = true;
+      result[date].dotColor = '#fff';
     }
   });
 
