@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -39,8 +40,16 @@ export default function TabLayout() {
         }}
       />
 
-
-      
+      <Tabs.Screen
+        name="invite"
+        options={{
+          title: '초대',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-add" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
+
   );
 }
