@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,58 +16,65 @@ interface AddWishlistModalProps {
   visible: boolean;
   onClose: () => void;
   onAdd: (title: string, energy: string, mood: string, ownerType: OwnerType) => void;
-  isCouple: boolean;
+  isCouple: boolean; // true면 COUPLE, false면 PERSONAL
 }
 
 export default function AddWishlistModal({ visible, onClose, onAdd, isCouple }: AddWishlistModalProps) {
   const [wishText, setWishText] = useState('');
-  const [ownerType, setOwnerType] = useState<OwnerType>('PERSONAL');
-  
-  // AI 분석 결과 (실시간)
-  const [analyzedData, setAnalyzedData] = useState({
-    title: '',
-    energy: '중간',
-    mood: '행복',
-    originalText: '',
-  });
-
-  // 텍스트 입력 시 실시간으로 AI 분석
-  useEffect(() => {
-    if (wishText.trim()) {
-      const result = analyzeWishlist(wishText);
-      setAnalyzedData(result);
-    } else {
-      setAnalyzedData({
-        title: '',
-        energy: '중간',
-        mood: '행복',
-        originalText: '',
-      });
-    }
-  }, [wishText]);
 
   const handleSubmit = () => {
-    if (!wishText.trim()) {
+    console.log('🔵 handleSubmit 호출됨!');
+    console.log('📝 입력된 텍스트:', wishText);
+    
+    // 입력값 체크
+    const trimmedText = wishText.trim();
+    
+    if (!trimmedText) {
+      console.log('❌ 빈 값입니다');
       Alert.alert('알림', '데이트 위시를 입력해주세요.');
       return;
     }
 
-    // AI 분석된 결과로 추가
-    onAdd(
-      analyzedData.title,
-      analyzedData.energy,
-      analyzedData.mood,
-      ownerType
-    );
-    
-    // 초기화
-    setWishText('');
-    setOwnerType('PERSONAL');
+    console.log('✅ 텍스트 있음, AI 분석 시작...');
+
+    try {
+      // AI 분석
+      const analyzed = analyzeWishlist(trimmedText);
+      console.log('📊 AI 분석 완료:', analyzed);
+      
+      // isCouple에 따라 자동으로 owner_type 결정
+      const ownerType: OwnerType = isCouple ? 'COUPLE' : 'PERSONAL';
+      
+      console.log('🚀 onAdd 함수 호출 시작...');
+      console.log('전달할 데이터:', {
+        title: analyzed.title,
+        energy: analyzed.energy,
+        mood: analyzed.mood,
+        ownerType: ownerType
+      });
+      
+      // 분석 결과로 추가
+      onAdd(
+        analyzed.title,
+        analyzed.energy,
+        analyzed.mood,
+        ownerType
+      );
+      
+      console.log('✅ onAdd 함수 호출 완료');
+      
+      // 초기화
+      setWishText('');
+      
+    } catch (error) {
+      console.error('🚨 에러 발생:', error);
+      Alert.alert('오류', '분석 중 오류가 발생했습니다: ' + error);
+    }
   };
 
   const handleClose = () => {
+    console.log('❌ 모달 닫기');
     setWishText('');
-    setOwnerType('PERSONAL');
     onClose();
   };
 
@@ -81,7 +88,9 @@ export default function AddWishlistModal({ visible, onClose, onAdd, isCouple }: 
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>새 위시리스트 추가</Text>
+            <Text style={styles.headerTitle}>
+              {isCouple ? '우리의 위시 추가' : '내 위시 추가'}
+            </Text>
             <TouchableOpacity onPress={handleClose}>
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
@@ -94,53 +103,15 @@ export default function AddWishlistModal({ visible, onClose, onAdd, isCouple }: 
               placeholder="예: 롯데월드 가고 싶어!&#10;조용한 카페에서 수다 떨고 싶다&#10;한강에서 피크닉"
               placeholderTextColor="#aaa"
               value={wishText}
-              onChangeText={setWishText}
+              onChangeText={(text) => {
+                console.log('⌨️ 텍스트 입력:', text);
+                setWishText(text);
+              }}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              autoFocus
             />
-
-
-
-            {isCouple && (
-              <>
-                <Text style={styles.label}>유형</Text>
-                <View style={styles.ownerTypeContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.ownerTypeButton,
-                      ownerType === 'PERSONAL' && styles.ownerTypeButtonActive,
-                    ]}
-                    onPress={() => setOwnerType('PERSONAL')}
-                  >
-                    <Text
-                      style={[
-                        styles.ownerTypeText,
-                        ownerType === 'PERSONAL' && styles.ownerTypeTextActive,
-                      ]}
-                    >
-                      개인
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.ownerTypeButton,
-                      ownerType === 'COUPLE' && styles.ownerTypeButtonActive,
-                    ]}
-                    onPress={() => setOwnerType('COUPLE')}
-                  >
-                    <Text
-                      style={[
-                        styles.ownerTypeText,
-                        ownerType === 'COUPLE' && styles.ownerTypeTextActive,
-                      ]}
-                    >
-                      커플 공유
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
           </ScrollView>
 
           <View style={styles.footer}>
@@ -152,7 +123,10 @@ export default function AddWishlistModal({ visible, onClose, onAdd, isCouple }: 
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.addButton]}
-              onPress={handleSubmit}
+              onPress={() => {
+                console.log('🔘 추가 버튼 클릭됨!');
+                handleSubmit();
+              }}
             >
               <Text style={styles.addButtonText}>추가</Text>
             </TouchableOpacity>
@@ -174,7 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '70%',
     overflow: 'hidden',
   },
   header: {
@@ -202,7 +176,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
-    marginTop: 12,
   },
   textArea: {
     borderWidth: 1,
@@ -213,32 +186,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9f9f9',
     minHeight: 120,
     maxHeight: 200,
-  },
-  
-  ownerTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  ownerTypeButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    alignItems: 'center',
-  },
-  ownerTypeButtonActive: {
-    borderColor: '#6EC6FF',
-    backgroundColor: '#E6F5FF',
-  },
-  ownerTypeText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  ownerTypeTextActive: {
-    color: '#6EC6FF',
-    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

@@ -6,29 +6,49 @@ import GradientHeart from '@/components/GradientHeart';
 interface WishlistCardProps {
   item: WishlistItem;
   onDelete: (id: string) => void;
+  currentUserId?: string; // 현재 사용자 ID (선택적)
 }
 
-export default function WishlistCard({ item, onDelete }: WishlistCardProps) {
+export default function WishlistCard({ item, onDelete, currentUserId }: WishlistCardProps) {
   const handleDelete = () => {
-    // 바로 삭제
     onDelete(item.id);
+  };
+
+  // 하트 색깔 결정
+  const renderHeart = () => {
+    if (item.owner_type === 'COUPLE') {
+      // 커플 공유 = 그라데이션 하트
+      return <GradientHeart size={20} />;
+    } else if (item.owner_user_id === currentUserId) {
+      // 내가 추가한 것 = 붉은색 하트
+      return (
+        <View style={styles.heartContainer}>
+          <Text style={styles.redHeart}>♥</Text>
+        </View>
+      );
+    } else {
+      // 상대방이 추가한 것 = 하늘색 하트
+      return (
+        <View style={styles.heartContainer}>
+          <Text style={styles.blueHeart}>♥</Text>
+        </View>
+      );
+    }
   };
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.titleContainer}>
-          <GradientHeart size={20} />
+          {renderHeart()}
           <Text style={styles.title}>{item.title}</Text>
         </View>
         
-        {/* X 버튼으로 삭제 */}
         <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
           <Text style={styles.deleteIcon}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 세부 내역 제거 - 간단하게만 표시 */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           {item.owner_type === 'COUPLE' ? '💑 커플 공유' : '👤 개인'}
@@ -67,6 +87,20 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: 8,
     flex: 1,
+  },
+  heartContainer: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  redHeart: {
+    fontSize: 20,
+    color: '#F58A7A',
+  },
+  blueHeart: {
+    fontSize: 20,
+    color: '#6EC6FF',
   },
   deleteButton: {
     padding: 8,

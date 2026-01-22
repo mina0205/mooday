@@ -1,25 +1,131 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { WishlistItem, OwnerType } from '@/src/types/wishlist';
+import WishlistCard from '@/components/WishlistCard';
 import AddWishlistModal from '@/components/AddWishlistModal';
 import GradientHeart from '@/components/GradientHeart';
-import WishlistCard from '@/components/WishlistCard';
-import { OwnerType, WishlistItem } from '@/src/types/wishlist';
-import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { fetchWishlists, addWishlist, deleteWishlist } from '@/services/wishlist';
+import { supabase } from '@/src/lib/supabase';
 
 export default function WishlistScreen() {
-  // 테스트용: 로컬 상태만 사용 (Supabase 없이)
-  const userId = '84db1fe7-b978-43c1-b00c-28e67b282ea';
-  const coupleId = null;
+  const [userId, setUserId] = useState<string | null>(null);
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [coupleId, setCoupleId] = useState<string | null>(null);
   
-  const [wishlists, setWishlists] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [myWishlists, setMyWishlists] = useState<WishlistItem[]>([]);
+  const [partnerWishlists, setPartnerWishlists] = useState<WishlistItem[]>([]);
+  const [coupleWishlists, setCoupleWishlists] = useState<WishlistItem[]>([]);
+  
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
+
+  // 현재 사용자 확인 및 커플 정보 가져오기
+  useEffect(() => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('✅ 로그인된 사용자:', user.id);
+        setUserId(user.id);
+        
+        // 이 사용자가 속한 커플 찾기
+        try {
+          const { data: myCouple, error: coupleError } = await supabase
+            .from('couple_members')
+            .select('couple_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (coupleError) {
+            console.log('⚠️ 커플 정보 조회 실패:', coupleError);
+          } else if (myCouple) {
+            console.log('✅ 커플 ID:', myCouple.couple_id);
+            setCoupleId(myCouple.couple_id);
+            
+            // 상대방 ID 가져오기
+            const { data: partnerData, error: partnerError } = await supabase
+              .from('couple_members')
+              .select('user_id')
+              .eq('couple_id', myCouple.couple_id)
+              .neq('user_id', user.id)
+              .maybeSingle();
+            
+            if (partnerError) {
+              console.log('⚠️ 상대방 정보 조회 실패:', partnerError);
+            } else if (partnerData) {
+              console.log('✅ 상대방 ID:', partnerData.user_id);
+              setPartnerId(partnerData.user_id);
+            } else {
+              console.log('ℹ️ 상대방 없음 (커플 대기 중)');
+            }
+          } else {
+            console.log('ℹ️ 커플 연동 안 됨 (개인 사용자)');
+          }
+        } catch (error) {
+          console.log('⚠️ 커플 정보 조회 중 예외:', error);
+        }
+      }
+    }
+    init();
+  }, []);
+
+  // userId가 설정되면 위시리스트 불러오기 (partnerId 선택적)
+  useEffect(() => {
+    if (userId) {
+      loadWishlists();
+    }
+  }, [userId, partnerId]);
+
+  const loadWishlists = async () => {
+    if (!userId) return;
+    
+    console.log('📥 위시리스트 불러오기 시작...');
+    console.log('👤 userId:', userId);
+    console.log('💑 partnerId:', partnerId);
+    
+    setLoading(true);
+    try {
+      const data = await fetchWishlists(userId, coupleId);
+      console.log('✅ 전체 위시리스트:', data.length, '개');
+      
+      // 내 위시리스트 (개인)
+      const mine = data.filter(
+        item => item.owner_user_id === userId && item.owner_type === 'PERSONAL'
+      );
+      
+      // 상대방 위시리스트 (개인) - partnerId 있을 때만
+      const partner = partnerId ? data.filter(
+        item => item.owner_user_id === partnerId && item.owner_type === 'PERSONAL'
+      ) : [];
+      
+      // 우리의 위시리스트 (커플 공유)
+      const couple = data.filter(
+        item => item.owner_type === 'COUPLE'
+      );
+      
+      setMyWishlists(mine);
+      setPartnerWishlists(partner);
+      setCoupleWishlists(couple);
+      
+      console.log('📊 내 것:', mine.length, '개');
+      console.log('📊 상대방:', partner.length, '개');
+      console.log('📊 커플:', couple.length, '개');
+      
+    } catch (error) {
+      console.error('❌ 위시리스트 불러오기 실패:', error);
+      Alert.alert('오류', '위시리스트를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddWishlist = async (
     title: string,
@@ -27,39 +133,75 @@ export default function WishlistScreen() {
     mood: string,
     ownerType: OwnerType
   ) => {
+    if (!userId) {
+      Alert.alert('알림', '로그인이 필요합니다.');
+      return;
+    }
+
+    console.log('🎯 위시리스트 추가:', { title, energy, mood, ownerType });
+
     try {
-      // 로컬에만 추가 (Supabase 사용 안 함)
-      const newWishlist: WishlistItem = {
-        id: Date.now().toString(),
-        couple_id: coupleId || '',
-        owner_user_id: userId,
-        owner_type: ownerType,
+      const newWishlist = await addWishlist(
+        userId,
+        coupleId,
         title,
         energy,
         mood,
-        created_at: new Date().toISOString(),
-      };
+        ownerType
+      );
       
-      setWishlists([newWishlist, ...wishlists]);
+      console.log('✅ 저장 성공:', newWishlist);
+      
+      // 해당 섹션에 추가
+      if (ownerType === 'PERSONAL') {
+        setMyWishlists([newWishlist, ...myWishlists]);
+      } else {
+        setCoupleWishlists([newWishlist, ...coupleWishlists]);
+      }
+      
       setModalVisible(false);
-    } catch (error) {
-      console.error('Error adding wishlist:', error);
+      Alert.alert('성공', '위시리스트가 추가되었습니다!');
+    } catch (error: any) {
+      console.error('🚨 저장 실패:', error);
+      Alert.alert('오류', '위시리스트 추가에 실패했습니다.');
     }
   };
 
-  const handleDeleteWishlist = (id: string) => {
+  const handleDeleteWishlist = async (id: string) => {
+    console.log('🗑️ 삭제:', id);
     try {
-      // 로컬에서 즉시 삭제
-      setWishlists(prevWishlists => prevWishlists.filter(item => item.id !== id));
+      await deleteWishlist(id);
+      console.log('✅ 삭제 성공');
+      
+      // 모든 리스트에서 제거
+      setMyWishlists(prev => prev.filter(item => item.id !== id));
+      setPartnerWishlists(prev => prev.filter(item => item.id !== id));
+      setCoupleWishlists(prev => prev.filter(item => item.id !== id));
+      
+      Alert.alert('성공', '위시리스트가 삭제되었습니다.');
     } catch (error) {
-      console.error('Error deleting wishlist:', error);
+      console.error('❌ 삭제 실패:', error);
+      Alert.alert('오류', '위시리스트 삭제에 실패했습니다.');
     }
+  };
+
+  const openAddModal = (ownerType: OwnerType) => {
+    setModalOwnerType(ownerType);
+    setModalVisible(true);
   };
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#6EC6FF" />
+      </View>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.emptyText}>로그인이 필요합니다</Text>
       </View>
     );
   }
@@ -78,33 +220,100 @@ export default function WishlistScreen() {
         </Text>
       </View>
 
-      <FlatList
-        data={wishlists}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <WishlistCard item={item} onDelete={handleDeleteWishlist} />
-        )}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
-            <Text style={styles.emptySubtext}>+ 버튼을 눌러 추가해보세요!</Text>
+      <ScrollView style={styles.content}>
+        {/* 내가 하고싶은 데이트 */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, styles.mySection]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.redHeartIcon}>♥</Text>
+              <Text style={styles.sectionTitle}>내가 하고싶은 데이트</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => openAddModal('PERSONAL')}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+          
+          <View style={styles.sectionContent}>
+            {myWishlists.length === 0 ? (
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            ) : (
+              myWishlists.map(item => (
+                <WishlistCard 
+                  key={item.id} 
+                  item={item} 
+                  onDelete={handleDeleteWishlist}
+                  currentUserId={userId || undefined}
+                />
+              ))
+            )}
+          </View>
+        </View>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+        {/* 상대방이 하고싶은 데이트 */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, styles.partnerSection]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.blueHeartIcon}>♥</Text>
+              <Text style={styles.sectionTitle}>상대방이 하고싶은 데이트</Text>
+            </View>
+          </View>
+          
+          <View style={styles.sectionContent}>
+            {partnerWishlists.length === 0 ? (
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            ) : (
+              partnerWishlists.map(item => (
+                <WishlistCard 
+                  key={item.id} 
+                  item={item} 
+                  onDelete={handleDeleteWishlist}
+                  currentUserId={userId || undefined}
+                />
+              ))
+            )}
+          </View>
+        </View>
+
+        {/* 우리의 위시리스트 */}
+        <View style={styles.section}>
+          <View style={[styles.sectionHeader, styles.coupleSection]}>
+            <View style={styles.sectionTitleRow}>
+              <GradientHeart size={24} />
+              <Text style={styles.sectionTitle}>우리의 위시리스트</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => openAddModal('COUPLE')}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.sectionContent}>
+            {coupleWishlists.length === 0 ? (
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            ) : (
+              coupleWishlists.map(item => (
+                <WishlistCard 
+                  key={item.id} 
+                  item={item} 
+                  onDelete={handleDeleteWishlist}
+                  currentUserId={userId || undefined}
+                />
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
 
       <AddWishlistModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onAdd={handleAddWishlist}
-        isCouple={coupleId !== null}
+        isCouple={modalOwnerType === 'COUPLE'}
       />
     </View>
   );
@@ -148,42 +357,85 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 40,
   },
-  listContent: {
+  content: {
+    flex: 1,
+  },
+  
+  // 섹션 스타일
+  section: {
+    margin: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 2,
+  },
+  mySection: {
+    borderBottomColor: '#FFB088',
+    backgroundColor: '#FFF5F0',
+  },
+  partnerSection: {
+    borderBottomColor: '#6EC6FF',
+    backgroundColor: '#F0F8FF',
+  },
+  coupleSection: {
+    borderBottomColor: '#E8B4FF',
+    backgroundColor: '#FFF5FB',
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heartIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  redHeartIcon: {
+    fontSize: 20,
+    marginRight: 8,
+    color: '#F58A7A',
+  },
+  blueHeartIcon: {
+    fontSize: 20,
+    marginRight: 8,
+    color: '#6EC6FF',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: '300',
+    color: '#333',
+  },
+  sectionContent: {
     padding: 16,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
   emptyText: {
-    fontSize: 18,
-    color: '#999',
-    marginBottom: 8,
-  },
-  emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#6EC6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  fabText: {
-    fontSize: 32,
-    color: 'white',
-    fontWeight: '300',
+    color: '#999',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });
