@@ -14,6 +14,7 @@ import { User } from '@supabase/supabase-js';
 import type { Schedule } from '@/src/types/schedule';
 import { CalendarView } from './_components/CalendarView';
 import { DaySchedulePanel } from './_components/DaySchedulePanel';
+import {CoupleNotice } from './_components/CoupleNotice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 /* ------------------------------
@@ -281,7 +282,10 @@ const handleDeleteSchedule = () => {
             setIsModalOpen(true);
         }}
     />
-
+      {!selectedDate && userCoupleId && (
+            <CoupleNotice coupleId={userCoupleId} />
+            )}
+       
       {calendarMode === 'VIEW' && selectedDate && (
         <DaySchedulePanel
             date={selectedDate}
