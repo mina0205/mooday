@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { WishlistItem, OwnerType } from '@/src/types/wishlist';
 import WishlistCard from '@/components/WishlistCard';
 import AddWishlistModal from '@/components/AddWishlistModal';
@@ -83,6 +84,16 @@ export default function WishlistScreen() {
       loadWishlists();
     }
   }, [userId, partnerId]);
+
+  // 탭 포커스 시 자동 새로고침
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userId) {
+        console.log('🔄 탭 포커스 - 위시리스트 새로고침');
+        loadWishlists();
+      }
+    }, [userId, partnerId, coupleId])
+  );
 
   const loadWishlists = async () => {
     if (!userId) return;
