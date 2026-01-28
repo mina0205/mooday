@@ -49,6 +49,26 @@ export default function TabLayout() {
           ),
         }}
       />
+
+    <Tabs.Screen
+        name="recommendation"
+        options={{
+          title: 'ai추천데이트',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-add" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="logout"
+        options={{
+          title: '로그아웃',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="log-out" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
 
   );

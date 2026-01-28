@@ -51,104 +51,155 @@ export default function HomeTab() {
   const [showEndPicker, setShowEndPicker] = useState(false);
 
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [coupleUserIds, setCoupleUserIds] = useState<string[]>([]);
 
 
   /* ------------------------------
-   * 일정 조회
+   * 초기 로딩
    * ------------------------------ */
   useEffect(() => {
-    fetchSchedules();
+    init();
   }, []);
 
-  const fetchSchedules = async () => {
+  const init = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     setUser(user);
-    await fetchMyCoupleId();
 
-    const { data } = await supabase
+    // ✅ RPC: 내 커플 ID
+    const { data: coupleId, error: coupleErr } =
+      await supabase.rpc('get_my_couple_id');
+
+    if (coupleErr) {
+      console.error('내 커플 ID 조회 실패:', coupleErr);
+      return;
+    }
+
+    setUserCoupleId(coupleId);
+
+    // ✅ RPC: 커플 유저 목록
+    const { data: userIds, error: usersErr } =
+      await supabase.rpc('get_couple_user_ids');
+
+    if (usersErr) {
+      console.error('커플 유저 조회 실패:', usersErr);
+      return;
+    }
+
+    setCoupleUserIds(userIds ?? []);
+
+    // ✅ 일정 조회 (RLS 허용)
+    const { data: schedules } = await supabase
       .from('schedules')
       .select('*')
       .order('start_date');
 
-    setSchedules(data ?? []);
+    setSchedules(schedules ?? []);
     setLoading(false);
   };
 
-  const fetchMyCoupleId = async () => {
-    const { data } = await supabase
-      .from('couple_members')
-      .select('couple_id')
-      .single();
+    /* ------------------------------
+   * 날짜 기준 필터링
+   * ------------------------------ */
+  const schedulesOfDay = useMemo(() => {
+    if (!selectedDate) return [];
 
-    setUserCoupleId(data?.couple_id ?? null);
+    const selected = toDate(selectedDate);
+
+    return schedules.filter((s) => {
+      const start = toDate(s.start_date);
+      const end = toDate(s.end_date ?? s.start_date);
+      return start <= selected && selected <= end;
+    });
+  }, [schedules, selectedDate]);
+
+  const mySchedules = schedulesOfDay.filter(
+    (s) => s.owner_type === 'PERSONAL' && s.owner_user_id === user?.id
+  );
+
+  const partnerUserId = coupleUserIds.find((id) => id !== user?.id) ?? null;
+
+  const partnerSchedules = schedulesOfDay.filter(
+    (s) =>
+      s.owner_type === 'PERSONAL' &&
+      s.owner_user_id === partnerUserId
+  );
+
+  const coupleSchedules = schedulesOfDay.filter(
+    (s) => s.owner_type === 'COUPLE'
+  );
+
+  /* ------------------------------
+   * 디버그 로그 (유지)
+   * ------------------------------ */
+  useEffect(() => {
+    console.log('✅ READY STATE', {
+      user: user?.id,
+      userCoupleId,
+      coupleUserIds,
+      partnerUserId,
+      partnerSchedules: partnerSchedules.map(s => s.title),
+    });
+  }, [user, userCoupleId, coupleUserIds, partnerUserId, partnerSchedules]);
+
+  /* ------------------------------
+   * 일정 저장
+   * ------------------------------ */
+  const handleSaveSchedule = async () => {
+    if (!user || !startDate || !title.trim()) return;
+
+    const payload = {
+      title,
+      memo: memo || null,
+      start_date: startDate,
+      end_date: endDate ?? startDate,
+      owner_type: scheduleType,
+      owner_user_id: user.id,
+      couple_id: scheduleType === 'COUPLE' ? userCoupleId : null,
+    };
+
+    if (editingSchedule) {
+      await supabase
+        .from('schedules')
+        .update(payload)
+        .eq('id', editingSchedule.id);
+    } else {
+      await supabase.from('schedules').insert(payload);
+    }
+
+    await init();
+    closeModal();
   };
 
   /* ------------------------------
-   * 일정 저장 -> 추가, 수정 분기 
+   * UI 핸들러
    * ------------------------------ */
-  const handleSaveSchedule = async () => {
-  if (!user) return;
-
-  if (!title.trim()) {
-    alert('제목은 필수입니다');
-    return;
-  }
-
-  if (!startDate) {
-    alert('날짜를 선택해주세요');
-    return;
-  }
-
-  const payload = {
-    title,
-    memo: memo || null,
-    start_date: startDate,
-    end_date: endDate ?? startDate,
-    owner_type: scheduleType,
-    owner_user_id: user.id,
-    couple_id: scheduleType === 'COUPLE' ? userCoupleId : null,
+  const handleCalendarPress = (date: string) => {
+    if (calendarMode === 'VIEW') {
+      setSelectedDate(prev => (prev === date ? null : date));
+    }
   };
 
-  //  수정
-  if (editingSchedule) {
-    const { error } = await supabase
-      .from('schedules')
-      .update(payload)
-      .eq('id', editingSchedule.id);
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setCalendarMode('VIEW');
+    setTitle('');
+    setMemo('');
+    setScheduleType('PERSONAL');
+    setStartDate(null);
+    setEndDate(null);
+    setEditingSchedule(null);
+  };
 
-    if (error) {
-    console.error('수정 에러:', error);
-      alert('수정 실패');
-      return;
-    }
-
-    setSchedules((prev) =>
-      prev.map((s) =>
-        s.id === editingSchedule.id
-          ? { ...s, ...payload }
-          : s
-      )
-    );
+  if (
+    loading ||
+    !user ||
+    !userCoupleId ||
+    coupleUserIds.length < 2
+  ) {
+    return <Text>로딩중...</Text>;
   }
-  //  추가
-  else {
-    const { error } = await supabase
-      .from('schedules')
-      .insert(payload);
-
-    if (error) {
-    console.error('저장 에러:', error);
-      alert('저장 실패');
-      return;
-    }
-
-    await fetchSchedules();
-  }
-
-  closeModal();
-};
 
   /* ------------------------------
    * 일정 삭제 
@@ -194,73 +245,10 @@ const handleDeleteSchedule = () => {
   );
 };
 
-  /* ------------------------------
-   * markedDates
-   * ------------------------------ */
-  
-
-  /* ------------------------------
-   * 날짜 기준 필터링  
-   * ------------------------------ */
-  const schedulesOfDay = useMemo(() => {
-  if (!selectedDate) return [];
-
-  return schedules.filter(
-    (s) =>
-      s.start_date <= selectedDate &&
-      (s.end_date ?? s.start_date) >= selectedDate
-  );
-}, [schedules, selectedDate]);
-
-    const mySchedules = schedulesOfDay.filter(
-    (s) => s.owner_type === 'PERSONAL' && s.owner_user_id === user?.id
-    );
-
-    const partnerSchedules = schedulesOfDay.filter(
-    (s) => s.owner_type === 'PERSONAL' && s.owner_user_id !== user?.id
-    );
-
-    const coupleSchedules = schedulesOfDay.filter(
-    (s) => s.owner_type === 'COUPLE'
-    );
-
-
-  /* ------------------------------
-   * 캘린더 클릭
-   * ------------------------------ */
-  const handleCalendarPress = (date: string) => {
-    if (calendarMode === 'VIEW') {
-      setSelectedDate(prev => (prev === date ? null : date));
-    }
-  };
-
-/* ------------------------------
-   * closeModal
-   * ------------------------------ */
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setCalendarMode('VIEW');
-    
-    setTitle('');
-    setMemo('');
-    setScheduleType('PERSONAL');
-    setStartDate(null);
-    setEndDate(null);
-    setEditingSchedule(null);
-  };
-
-  if (loading) return <Text>로딩중...</Text>;
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#fff', padding:40 }}>
 
-        <Button
-        title="로그아웃"
-        onPress={async () => {
-            await supabase.auth.signOut();
-            alert('로그아웃 완료. 앱 다시 실행하세요');
-        }}
-        />
 
       <CalendarView
         //markedDates={markedDates}
@@ -287,7 +275,9 @@ const handleDeleteSchedule = () => {
             <CoupleNotice coupleId={userCoupleId} />
             )}
        
-      {calendarMode === 'VIEW' && selectedDate && (
+      {calendarMode === 'VIEW' && selectedDate && user &&
+          userCoupleId &&
+          coupleUserIds.length > 0 && (
         <DaySchedulePanel
             date={selectedDate}
             mySchedules={mySchedules}
@@ -476,16 +466,10 @@ const handleDeleteSchedule = () => {
 /* ------------------------------
  * 유틸
  * ------------------------------ */
-function getScheduleColor(schedule: Schedule, myUserId: string) {
-  if (schedule.owner_type === 'COUPLE') return COLORS.COUPLE;
-  if (schedule.owner_user_id === myUserId) return COLORS.MY;
-  return COLORS.PARTNER;
-}
 
-function addDays(dateString: string, days: number) {
-  const d = new Date(dateString);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+function toDate(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d); // 로컬 기준
 }
 
 /* ------------------------------
@@ -494,7 +478,7 @@ function addDays(dateString: string, days: number) {
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     padding: 20,
   },
@@ -510,7 +494,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: 'rgba(0,0,0,0.4)',
     borderRadius: 8,
     padding: 8,
     marginBottom: 12,
@@ -518,7 +502,7 @@ const styles = StyleSheet.create({
   dateButton: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: 'rgba(0,0,0,0.4)',
     borderRadius: 8,
     marginBottom: 8,
   },
