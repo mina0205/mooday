@@ -1,13 +1,40 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import { supabase } from '@/src/lib/supabase';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 
 export default function InvitePage() {
+  const [user, setUser] = useState<any>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        setUser(session.user);
+      }
+
+      setLoading(false);
+    };
+
+    loadUser();
+  }, []);
+
+   const handleCopyInviteCode = async () => {
+      if (!inviteCode) return;
+
+      await Clipboard.setStringAsync(inviteCode);
+      Alert.alert('초대 코드가 복사됐어요!');
+    };
 
   const handleCreateInviteCode = async () => {
+
     if (loading) return;
     setLoading(true);
 
@@ -17,6 +44,9 @@ export default function InvitePage() {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
+
+      console.log('🔥 USER:', user);
+      console.log('🔥 USER ID:', user?.id);
 
       if (userError || !user) {
         Alert.alert('로그인이 필요합니다');
@@ -35,41 +65,24 @@ export default function InvitePage() {
         return;
       }
 
-      /* 3️⃣ 초대 코드 생성 */
+      /* 3️⃣ 초대 코드 생성  -> 📍중복 가능성있어서 추후 개선 필요 */
       const newInviteCode = Math.random()
         .toString(36)
         .substring(2, 10)
         .toUpperCase();
 
-      /* 4️⃣ couples 생성 */
-      const { data: couple, error: coupleError } = await supabase
-        .from('couples')
-        .insert({
-          invite_code: newInviteCode,
-          relationship_start_date: new Date()
-            .toISOString()
-            .slice(0, 10),
-        })
-        .select()
-        .single();
+      /* 4️⃣ 커플 및 멤버 생성(insert) - RPC 함수 사용 */ 
+      const { data, error } = await supabase.rpc(
+        'create_couple_with_owner',
+        {
+          p_invite_code: newInviteCode,
+          p_start_date: new Date().toISOString().slice(0, 10),
+        }
+      );
 
-      if (coupleError || !couple) {
-        console.error(coupleError);
+      if (error) {
+        console.error(error);
         Alert.alert('커플 생성에 실패했어요');
-        return;
-      }
-
-      /* 5️⃣ couple_members에 나 자신 추가 */
-      const { error: memberError } = await supabase
-        .from('couple_members')
-        .insert({
-          couple_id: couple.id,
-          user_id: user.id,
-        });
-
-      if (memberError) {
-        console.error(memberError);
-        Alert.alert('커플 연결에 실패했어요');
         return;
       }
 
@@ -80,16 +93,21 @@ export default function InvitePage() {
     }
   };
 
+   /* ✅ 세션 로딩 중이면 아무 것도 안 보여줌 */
+  if (loading) return null;
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>커플 초대</Text>
 
       {/* 초대 코드 표시 영역 */}
+    <TouchableOpacity onPress={handleCopyInviteCode} activeOpacity={0.7}>
       <View style={styles.codeBox}>
         <Text style={styles.codeText}>
           {inviteCode ?? '아직 초대 코드가 없어요'}
         </Text>
       </View>
+    </TouchableOpacity>
 
       {/* 초대 코드 생성 */}
       <TouchableOpacity
@@ -99,6 +117,18 @@ export default function InvitePage() {
       >
         <Text style={styles.primaryText}>
           {loading ? '생성 중...' : '초대 코드 생성하기'}
+        </Text>
+      </TouchableOpacity>
+       {/* 구분선 */}
+      <View style={styles.divider} />
+
+      {/* 초대 코드 입력 페이지로 이동 */}
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => router.push('/invite/input')}
+      >
+        <Text style={styles.secondaryText}>
+         초대 코드 입력하기 →
         </Text>
       </TouchableOpacity>
 
@@ -150,6 +180,11 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     paddingVertical: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#222',
+    marginVertical: 24,
   },
   secondaryText: {
     color: '#aaa',

@@ -15,52 +15,47 @@ export default function InviteInputPage() {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!code.trim()) return;
+    if (!code.trim() || loading) return;
 
     setLoading(true);
 
+    // 1️⃣ 로그인 유저 확인
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
+      Alert.alert('로그인이 필요합니다');
       setLoading(false);
       return;
     }
 
-    // 1️⃣ 이미 커플인지 확인
-    const { data: member } = await supabase
-      .from('couple_members')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // 2️⃣ RPC 호출 (초대 코드로 커플 합류)
+    const { error } = await supabase.rpc(
+      'join_couple_by_invite_code',
+      {
+        p_invite_code: code.toUpperCase(),
+      }
+    );
 
-    if (member) {
-      Alert.alert('이미 커플에 속해 있습니다');
+    if (error) {
+      console.error(error);
+
+      //  RPC에서 던진 에러 메시지 기준 분기
+      if (error.message.includes('already in couple')) {
+        Alert.alert('이미 커플에 속해 있어요');
+      } else if (error.message.includes('invalid invite code')) {
+        Alert.alert('유효하지 않은 초대 코드입니다');
+      } else {
+        Alert.alert('커플 연결에 실패했어요');
+      }
+
       setLoading(false);
       return;
     }
 
-    // 2️⃣ 초대 코드로 커플 찾기
-    const { data: couple, error } = await supabase
-      .from('couples')
-      .select('id')
-      .eq('invite_code', code.toUpperCase())
-      .single();
-
-    if (error || !couple) {
-      Alert.alert('유효하지 않은 초대 코드입니다');
-      setLoading(false);
-      return;
-    }
-
-    // 3️⃣ 커플 합류
-    await supabase.from('couple_members').insert({
-      couple_id: couple.id,
-      user_id: user.id,
-    });
-
-    Alert.alert('커플 연결 완료 🎉');
+    // 3️⃣ 성공
+    Alert.alert('커플 연결 완료 ❤️');
     router.replace('/calendar');
 
     setLoading(false);
@@ -77,24 +72,16 @@ export default function InviteInputPage() {
         placeholderTextColor="#666"
         autoCapitalize="characters"
         style={styles.input}
+        editable={!loading}
       />
 
-      <TouchableOpacity style={styles.primaryBtn} onPress={submit}>
+      <TouchableOpacity
+        style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
+        onPress={submit}
+        disabled={loading}
+      >
         <Text style={styles.primaryText}>
           {loading ? '연결 중...' : '연결하기'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* 구분선 */}
-      <View style={styles.divider} />
-
-      {/* 초대 코드 생성으로 이동 */}
-      <TouchableOpacity
-        style={styles.secondaryBtn}
-        onPress={() => router.push('/invite/invite')}
-      >
-        <Text style={styles.secondaryText}>
-         초대 코드 생성하기 →
         </Text>
       </TouchableOpacity>
     </View>
@@ -132,19 +119,6 @@ const styles = StyleSheet.create({
   primaryText: {
     color: '#000',
     fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#222',
-    marginVertical: 24,
-  },
-  secondaryBtn: {
-    paddingVertical: 10,
-  },
-  secondaryText: {
-    color: '#888',
-    fontSize: 13,
     textAlign: 'center',
   },
 });

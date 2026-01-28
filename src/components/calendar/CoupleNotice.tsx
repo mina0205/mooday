@@ -18,8 +18,8 @@ export function CoupleNotice({ coupleId }: Props) {
   const [loading, setLoading] = useState(true);
 
   /* ------------------------------
-   * 공지 조회
-   * ------------------------------ */
+   * 공지 조회 <- 커플 아이디가 있어야 가능 
+  * ------------------------------ */
   useEffect(() => {
     if (!coupleId) return;
     fetchNotices();
