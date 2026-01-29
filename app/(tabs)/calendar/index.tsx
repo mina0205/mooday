@@ -18,9 +18,6 @@ import {CoupleNotice } from '@/src/components/calendar/CoupleNotice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 
-/* ------------------------------
- * 색상
- * ------------------------------ */
 const COLORS = {
   MY: '#5DA9FF',
   PARTNER: '#7ED957',
@@ -99,7 +96,7 @@ export default function HomeTab() {
     setLoading(false);
   };
 
-    /* ------------------------------
+  /* ------------------------------
    * 날짜 기준 필터링
    * ------------------------------ */
   const schedulesOfDay = useMemo(() => {
@@ -144,10 +141,19 @@ export default function HomeTab() {
   }, [user, userCoupleId, coupleUserIds, partnerUserId, partnerSchedules]);
 
   /* ------------------------------
-   * 일정 저장
+   * 일정 저장/수정 
    * ------------------------------ */
   const handleSaveSchedule = async () => {
     if (!user || !startDate || !title.trim()) return;
+    
+    // 커플 일정인데 couple_id 없음 → 차단
+    if (scheduleType === 'COUPLE' && !userCoupleId) {
+      Alert.alert(
+        '커플 정보 없음',
+        '커플 연결이 완료되지 않았어요.'
+      );
+      return;
+    }
 
     const payload = {
       title,
@@ -166,28 +172,28 @@ export default function HomeTab() {
         .eq('id', editingSchedule.id)
         .select(); 
 
-        // 권한 없음 / 수정 실패
-    if (error || !data || data.length === 0) {
-      Alert.alert(
-        '권한 없음',
-        '이 일정은 수정할 수 없어요.'
-      );
-      return; 
-    }
-  }
-    else {
-      const { error } = await supabase
-        .from('schedules')
-        .insert(payload);
-
-      if (error) {
+      // 권한 없음 / 수정 실패
+      if (error || !data || data.length === 0) {
         Alert.alert(
-          '저장 실패',
-          '일정을 저장할 수 없어요.'
+          '권한 없음',
+          '이 일정은 수정할 수 없어요.'
         );
-        return;
+        return; 
       }
     }
+      else {
+        const { error } = await supabase
+          .from('schedules')
+          .insert(payload);
+
+        if (error) {
+          Alert.alert(
+            '저장 실패',
+            '일정을 저장할 수 없어요.'
+          );
+          return;
+        }
+     }
   
     await init();
     closeModal();
@@ -228,9 +234,10 @@ const handleDeleteSchedule = () => {
             prev.filter(s => s.id !== editingSchedule.id)
           );
 
+          await init();
           setEditingSchedule(null);
           setIsModalOpen(false);
-          setSelectedDate(null);
+          //setSelectedDate(null);
         },
       },
     ],
@@ -267,9 +274,11 @@ const handleDeleteSchedule = () => {
   }
 
 
+  /* ------------------------------
+   * 화면 구성 
+   * ------------------------------ */
   return (
     <View style={{ flex: 1, backgroundColor: '#fff', padding:40 }}>
-
 
       <CalendarView
         //markedDates={markedDates}
@@ -297,8 +306,7 @@ const handleDeleteSchedule = () => {
             )}
        
       {calendarMode === 'VIEW' && selectedDate && user &&
-          userCoupleId &&
-          coupleUserIds.length > 0 && (
+          userCoupleId && coupleUserIds.length > 0 && (
         <DaySchedulePanel
             date={selectedDate}
             mySchedules={mySchedules}
@@ -551,6 +559,5 @@ const styles = StyleSheet.create({
   borderRadius: 12,
   overflow: 'hidden',
 },
-
 
 });

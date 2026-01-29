@@ -48,7 +48,6 @@ function groupSchedulesByDate(schedules: Schedule[]) {
   return map;
 }
 
-
 export function CalendarView({
   schedules,
   myUserId,
