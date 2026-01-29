@@ -160,17 +160,82 @@ export default function HomeTab() {
     };
 
     if (editingSchedule) {
-      await supabase
+      const { data, error } = await supabase
         .from('schedules')
         .update(payload)
-        .eq('id', editingSchedule.id);
-    } else {
-      await supabase.from('schedules').insert(payload);
-    }
+        .eq('id', editingSchedule.id)
+        .select(); 
 
+        // 권한 없음 / 수정 실패
+    if (error || !data || data.length === 0) {
+      Alert.alert(
+        '권한 없음',
+        '이 일정은 수정할 수 없어요.'
+      );
+      return; 
+    }
+  }
+    else {
+      const { error } = await supabase
+        .from('schedules')
+        .insert(payload);
+
+      if (error) {
+        Alert.alert(
+          '저장 실패',
+          '일정을 저장할 수 없어요.'
+        );
+        return;
+      }
+    }
+  
     await init();
     closeModal();
   };
+
+  /* ------------------------------
+   * 일정 삭제 -> 수정 상태가 아니면 '삭제'를 표시하지 않음  
+   * ------------------------------ */
+const handleDeleteSchedule = () => {
+  if (!editingSchedule) return;
+
+  Alert.alert(
+    '일정 삭제',
+    '이 일정을 삭제할까요?',
+    [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          const { data, error } = await supabase
+            .from('schedules')
+            .delete()
+            .eq('id', editingSchedule.id)
+            .select(); // ⭐️ 중요
+
+          // 실패: RLS 차단 or 삭제 0건
+          if (error || !data || data.length === 0) {
+            Alert.alert(
+              '권한 없음',
+              '이 일정은 삭제할 수 없어요.'
+            );
+            return;
+          }
+
+          // 성공한 경우만 UI 변경
+          setSchedules(prev =>
+            prev.filter(s => s.id !== editingSchedule.id)
+          );
+
+          setEditingSchedule(null);
+          setIsModalOpen(false);
+          setSelectedDate(null);
+        },
+      },
+    ],
+  );
+};
 
   /* ------------------------------
    * UI 핸들러
@@ -200,50 +265,6 @@ export default function HomeTab() {
   ) {
     return <Text>로딩중...</Text>;
   }
-
-  /* ------------------------------
-   * 일정 삭제 
-   * ------------------------------ */
-const handleDeleteSchedule = () => {
-//수정 상태가 아니면 '삭제'를 표시하지 않음  
-  if (!editingSchedule) return;
-
-  Alert.alert(
-    '일정 삭제',
-    '이 일정을 삭제할까요?',
-    [
-      {
-        text: '취소',
-        style: 'cancel',
-      },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase
-            .from('schedules')
-            .delete()
-            .eq('id', editingSchedule.id);
-
-          if (error) {
-            console.error('삭제 에러:', error);
-            alert('삭제 실패');
-            return;
-          }
-
-          // 로컬 상태 반영
-          setSchedules((prev) =>
-            prev.filter((s) => s.id !== editingSchedule.id)
-          );
-
-          setEditingSchedule(null);
-          setIsModalOpen(false);   
-          setSelectedDate(null);  
-        },
-      },
-    ],
-  );
-};
 
 
   return (
