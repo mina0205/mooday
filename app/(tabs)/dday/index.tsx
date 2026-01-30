@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '@/src/lib/supabase';
 import { AnniversaryList } from '@/src/components/dday/AnniversaryList';
+import { HeartProgress } from '@/src/components/dday/HeartProgress';
+import { router } from 'expo-router';
 
 export default function DdayPage() {
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -101,9 +103,16 @@ export default function DdayPage() {
   }
 
   const dday = calculateDDay(startDate);
+  const filledCount = Math.min(dday, 365);
 
   return (
     <View style={styles.container}>
+
+      {/* 채워지는 하트 */}
+      <HeartProgress filledCount={filledCount} />
+
+      {/* 공백을 위한  .. 나중에 지우길 */}
+      <Text style={styles.title}></Text>
       <Text style={styles.title}>우리가 만난지 .. 💕</Text>
 
       <Text style={styles.dday}>D + {dday}</Text>
@@ -124,7 +133,7 @@ export default function DdayPage() {
             <DateTimePicker
                 value={tempDate}
                 mode="date"
-                display="inline"   // ✅ 핵심
+                display="inline"  
                 locale="ko-KR"
                 onChange={(event, date) => {
                 if (date) setTempDate(date);
@@ -155,6 +164,11 @@ export default function DdayPage() {
         {showAnniversary && startDate && (
         <AnniversaryList startDate={startDate} />
         )}
+        <TouchableOpacity onPress={() => router.push('./src/components/dday/hearts')}>
+            <Text style={{ color: '#FF5D8F', marginTop: 12 }}>
+                우리가 모은 하트 보기 
+            </Text>
+        </TouchableOpacity>
     </View>
   );
 }

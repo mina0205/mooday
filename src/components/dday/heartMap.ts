@@ -1,0 +1,1 @@
+export const HEART_MAP: boolean[] = Array(365).fill(true);
