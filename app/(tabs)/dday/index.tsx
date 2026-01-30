@@ -117,7 +117,7 @@ export default function DdayPage() {
 
       {/* 공백을 위한  .. 나중에 지우길 ⬇️  */}
       <Text style={styles.title}></Text>
-      <Text style={styles.title}>우리가 만난지 .. 💕</Text>
+      <Text style={styles.title}>윤재랑 😳</Text>
       <Text style={styles.dday}>D + {dday}</Text>
 
       <TouchableOpacity onPress={() => setEditing(true)}>
@@ -167,11 +167,19 @@ export default function DdayPage() {
         {showAnniversary && startDate && (
         <AnniversaryList startDate={startDate} />
         )}
-        <TouchableOpacity onPress={() => router.push('./src/components/dday/hearts')}>
-            <Text style={{ color: '#FF5D8F', marginTop: 12 }}>
-                우리가 모은 하트 보기 
-            </Text>
+        <TouchableOpacity
+        onPress={() =>
+            router.push({
+            pathname: '/dday/hearts',
+            params: { startDate },
+            })
+        }
+        >
+        <Text style={{ color: '#FF5D8F' }}>
+            우리가 모은 하트 보기
+        </Text>
         </TouchableOpacity>
+
     </View>
   );
 }
