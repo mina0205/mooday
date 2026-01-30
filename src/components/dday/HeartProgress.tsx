@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { HEART_MAP } from './heartMap';
+import { HEART_ROWS } from './heartMap';
 
 type Props = {
   filledCount: number;
@@ -9,51 +9,57 @@ export function HeartProgress({ filledCount }: Props) {
   let filled = 0;
 
   return (
-    <View style={styles.grid}>
-      {HEART_MAP.map((isHeart, idx) => {
-        if (!isHeart) {
-          return <View key={idx} style={styles.empty} />;
-        }
+    <View style={styles.wrapper}>
+      {HEART_ROWS.map((row, rowIdx) => (
+        <View key={rowIdx} style={styles.row}>
+          {row.map((isHeart, colIdx) => {
+            if (!isHeart) {
+              return <View key={colIdx} style={styles.empty} />;
+            }
 
-        filled += 1;
-        const isFilled = filled <= filledCount;
+            filled += 1;
+            const isFilled = filled <= filledCount;
 
-        return (
-          <View
-            key={idx}
-            style={[
-              styles.cell,
-              isFilled ? styles.filled : styles.unfilled,
-            ]}
-          />
-        );
-      })}
+            return (
+              <View
+                key={colIdx}
+                style={[
+                  styles.cell,
+                  isFilled ? styles.filled : styles.unfilled,
+                ]}
+              />
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: {
-    width: 240,
+  wrapper: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   cell: {
-    width: 12,
-    height: 12,
-    margin: 1,
+    width: 11,
+    height: 11,
+    margin: 0.5,
     borderRadius: 2,
   },
   filled: {
     backgroundColor: '#FF5D8F',
   },
   unfilled: {
-    backgroundColor: '#333',
+    backgroundColor: 'rgba(255,93,143,0.25)',
   },
   empty: {
-    width: 12,
-    height: 12,
-    margin: 1,
+    width: 8,
+    height: 8,
+    margin: 0.5,
     backgroundColor: 'transparent',
   },
 });

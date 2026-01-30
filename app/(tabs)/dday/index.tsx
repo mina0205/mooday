@@ -103,7 +103,11 @@ export default function DdayPage() {
   }
 
   const dday = calculateDDay(startDate);
-  const filledCount = Math.min(dday, 365);
+  const filledCount = Math.min(
+  Math.max(dday, 0),
+  365
+);
+
 
   return (
     <View style={styles.container}>
@@ -111,10 +115,9 @@ export default function DdayPage() {
       {/* 채워지는 하트 */}
       <HeartProgress filledCount={filledCount} />
 
-      {/* 공백을 위한  .. 나중에 지우길 */}
+      {/* 공백을 위한  .. 나중에 지우길 ⬇️  */}
       <Text style={styles.title}></Text>
       <Text style={styles.title}>우리가 만난지 .. 💕</Text>
-
       <Text style={styles.dday}>D + {dday}</Text>
 
       <TouchableOpacity onPress={() => setEditing(true)}>
@@ -176,17 +179,31 @@ export default function DdayPage() {
 /* ------------------------------
  * 유틸
  * ------------------------------ */
-function calculateDDay(startDate: string) {
-  const start = new Date(startDate);
+export function calculateDDay(startDateStr: string): number {
   const today = new Date();
+  const start = new Date(startDateStr);
 
-  start.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
+  // 미래 날짜 방어
+  if (start > today) return 0;
 
-  return (
-    Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  // ⏱ 타임존 제거 (자정 기준)
+  const todayUTC = Date.UTC(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
   );
+  const startUTC = Date.UTC(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate()
+  );
+
+  const diffDays =
+    Math.floor((todayUTC - startUTC) / (1000 * 60 * 60 * 24)) + 1;
+
+  return diffDays;
 }
+
 
 /* ------------------------------
  * 스타일
