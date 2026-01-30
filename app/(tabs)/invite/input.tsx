@@ -6,13 +6,37 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import { supabase } from '@/src/lib/supabase';
 import { router } from 'expo-router';
 
 export default function InviteInputPage() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  //페이지 들어오자마자 커플여부 체크해서 판단 
+  useEffect(() => {
+    const checkCouple = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('couple_members')
+        .select('couple_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (data?.couple_id) {
+        Alert.alert('이미 커플이 연결되어 있어요');
+        router.replace('/calendar'); // 메일화면(캘린더페이지)으로 되돌림
+      }
+    };
+
+    checkCouple();
+  }, []);
 
   const submit = async () => {
     if (!code.trim() || loading) return;
@@ -41,13 +65,17 @@ export default function InviteInputPage() {
     if (error) {
       console.error(error);
 
-      //  RPC에서 던진 에러 메시지 기준 분기
-      if (error.message.includes('already in couple')) {
-        Alert.alert('이미 커플에 속해 있어요');
-      } else if (error.message.includes('invalid invite code')) {
-        Alert.alert('유효하지 않은 초대 코드입니다');
-      } else {
-        Alert.alert('커플 연결에 실패했어요');
+      switch (error.message) {
+        case 'ALREADY_JOINED':
+          Alert.alert('이미 커플이 연결되어 있어요');
+          break;
+
+        case 'INVALID_INVITE_CODE':
+          Alert.alert('유효하지 않은 초대 코드입니다');
+          break;
+
+        default:
+          Alert.alert('커플 연결에 실패했어요');
       }
 
       setLoading(false);

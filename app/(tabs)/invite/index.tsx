@@ -8,25 +8,40 @@ export default function InvitePage() {
   const [user, setUser] = useState<any>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [hasCouple, setHasCouple] = useState(false);
+
 
   useEffect(() => {
-    const loadUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+  const loadUserAndCouple = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        setUser(session.user);
-      }
-
+    if (!session?.user) {
       setLoading(false);
-    };
+      return;
+    }
 
-    loadUser();
-  }, []);
+    setUser(session.user);
 
-   const handleCopyInviteCode = async () => {
+    const { data } = await supabase
+      .from('couple_members')
+      .select('couple_id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (data?.couple_id) {
+      setHasCouple(true);
+    }
+
+    setLoading(false);
+  };
+
+  loadUserAndCouple();
+}, []);
+
+
+  const handleCopyInviteCode = async () => {
       if (!inviteCode) return;
 
       await Clipboard.setStringAsync(inviteCode);
@@ -53,18 +68,6 @@ export default function InvitePage() {
         return;
       }
 
-      /* 2️⃣ 이미 커플인지 체크 */
-      const { data: existingMember } = await supabase
-        .from('couple_members')
-        .select('couple_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existingMember) {
-        Alert.alert('이미 커플이 연결되어 있어요');
-        return;
-      }
-
       /* 3️⃣ 초대 코드 생성  -> 📍중복 가능성있어서 추후 개선 필요 */
       const newInviteCode = Math.random()
         .toString(36)
@@ -82,18 +85,21 @@ export default function InvitePage() {
 
       if (error) {
         console.error(error);
-        Alert.alert('커플 생성에 실패했어요');
-        return;
+
+        // DB unique 제약 위반 = 이미 커플
+         if (error.code === '23505') {
+          Alert.alert('이미 커플이 연결되어 있어요');
+        } else {
+          Alert.alert('커플 생성에 실패했어요');
+        }
+
+      } 
+    }finally {
+        setLoading(false);
       }
+    };
 
-      setInviteCode(newInviteCode);
-      Alert.alert('초대 코드가 생성됐어요!');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-   /* ✅ 세션 로딩 중이면 아무 것도 안 보여줌 */
+   /* 세션 로딩 중 */
   if (loading) return null;
 
   return (
@@ -111,14 +117,22 @@ export default function InvitePage() {
 
       {/* 초대 코드 생성 */}
       <TouchableOpacity
-        style={styles.primaryButton}
+        style={[
+          styles.primaryButton,
+          (loading || hasCouple) && { opacity: 0.5 },
+        ]}
         onPress={handleCreateInviteCode}
-        disabled={loading}
+        disabled={loading || hasCouple}
       >
         <Text style={styles.primaryText}>
-          {loading ? '생성 중...' : '초대 코드 생성하기'}
+          {hasCouple
+            ? '이미 커플이 연결되어 있어요'
+            : loading
+            ? '생성 중...'
+            : '초대 코드 생성하기'}
         </Text>
       </TouchableOpacity>
+
        {/* 구분선 */}
       <View style={styles.divider} />
 

@@ -60,7 +60,11 @@ export default function HomeTab() {
 
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    
+    if (!user) {
+    setLoading(false);
+    return;
+  }
 
     setUser(user);
 
@@ -264,15 +268,9 @@ const handleDeleteSchedule = () => {
     setEditingSchedule(null);
   };
 
-  if (
-    loading ||
-    !user ||
-    !userCoupleId ||
-    coupleUserIds.length < 2
-  ) {
-    return <Text>로딩중...</Text>;
-  }
-
+  if (loading || !user) {
+  return <Text>로딩중...</Text>;
+}
 
   /* ------------------------------
    * 화면 구성 
