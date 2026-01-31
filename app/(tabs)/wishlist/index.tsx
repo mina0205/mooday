@@ -29,54 +29,38 @@ export default function WishlistScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
 
-  // 현재 사용자 확인 및 커플 정보 가져오기
-  useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('✅ 로그인된 사용자:', user.id);
-        setUserId(user.id);
-        
-        // 이 사용자가 속한 커플 찾기
-        try {
-          const { data: myCouple, error: coupleError } = await supabase
-            .from('couple_members')
-            .select('couple_id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          if (coupleError) {
-            console.log('⚠️ 커플 정보 조회 실패:', coupleError);
-          } else if (myCouple) {
-            console.log('✅ 커플 ID:', myCouple.couple_id);
-            setCoupleId(myCouple.couple_id);
-            
-            // 상대방 ID 가져오기
-            const { data: partnerData, error: partnerError } = await supabase
-              .from('couple_members')
-              .select('user_id')
-              .eq('couple_id', myCouple.couple_id)
-              .neq('user_id', user.id)
-              .maybeSingle();
-            
-            if (partnerError) {
-              console.log('⚠️ 상대방 정보 조회 실패:', partnerError);
-            } else if (partnerData) {
-              console.log('✅ 상대방 ID:', partnerData.user_id);
-              setPartnerId(partnerData.user_id);
-            } else {
-              console.log('ℹ️ 상대방 없음 (커플 대기 중)');
-            }
-          } else {
-            console.log('ℹ️ 커플 연동 안 됨 (개인 사용자)');
-          }
-        } catch (error) {
-          console.log('⚠️ 커플 정보 조회 중 예외:', error);
-        }
-      }
+  // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
+useEffect(() => {
+  async function init() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setUserId(user.id);
+
+    // ✅ 커플 ID (RPC)
+    const { data: coupleId, error: coupleErr } =
+      await supabase.rpc('get_my_couple_id');
+
+    if (coupleErr) {
+      console.log('ℹ️ 커플 없음');
+      setCoupleId(null);
+      return;
     }
-    init();
-  }, []);
+
+    setCoupleId(coupleId);
+
+    // ✅ 커플 유저들
+    const { data: userIds } =
+      await supabase.rpc('get_couple_user_ids');
+
+    if (userIds?.length === 2) {
+      const partner = userIds.find(id => id !== user.id);
+      setPartnerId(partner ?? null);
+    }
+  }
+
+  init();
+}, []);
 
   // userId가 설정되면 위시리스트 불러오기 (partnerId 선택적)
   useEffect(() => {
@@ -113,9 +97,9 @@ export default function WishlistScreen() {
       );
       
       // 상대방 위시리스트 (개인) - partnerId 있을 때만
-      const partner = partnerId ? data.filter(
-        item => item.owner_user_id === partnerId && item.owner_type === 'PERSONAL'
-      ) : [];
+      const partner = data.filter(
+        item => item.owner_type === 'PERSONAL' && item.owner_user_id !== userId
+      );
       
       // 우리의 위시리스트 (커플 공유)
       const couple = data.filter(
@@ -144,6 +128,9 @@ export default function WishlistScreen() {
     mood: string,
     ownerType: OwnerType
   ) => {
+
+    console.log('🧩 WishlistScreen coupleId:', coupleId);
+    console.log('🧩 ownerType:', ownerType);
     if (!userId) {
       Alert.alert('알림', '로그인이 필요합니다.');
       return;

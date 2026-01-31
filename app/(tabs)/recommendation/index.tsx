@@ -71,7 +71,7 @@ export default function RecommendationScreen() {
 
     try {
       // 위시리스트 불러오기
-      const wishlists = await fetchWishlists(userId!, coupleId);
+      const wishlists = await fetchWishlists(userId, coupleId);
       
       // 해당 감정에 맞는 위시리스트 필터링
       const matchedWishlists = wishlists.filter(item => 
