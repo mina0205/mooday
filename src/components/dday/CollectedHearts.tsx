@@ -1,12 +1,12 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { getDaysTogether } from './getDaysTogether';
-import { FullHeart } from './FullHeart';
+import FullHeart from './FullHeart';
 
 type Props = {
   startDate: string;
 };
 
-export default function CollectedHeartsPage({ startDate }: Props) {
+export function CollectedHeartsPage({ startDate }: Props) {
   const daysTogether = getDaysTogether(startDate);
   const fullHearts = Math.floor(daysTogether / 365);
 
@@ -17,7 +17,7 @@ export default function CollectedHeartsPage({ startDate }: Props) {
           아직 모은 하트가 없어요 💭
         </Text>
         <Text style={styles.subText}>
-          1년이 되면 하트가 생겨요
+          1년이 되면 하트가 생겨요 !
         </Text>
       </View>
     );
@@ -28,13 +28,10 @@ export default function CollectedHeartsPage({ startDate }: Props) {
       {Array.from({ length: fullHearts }).map((_, i) => (
         <View key={i} style={styles.heartBlock}>
           <Text style={styles.title}>
-            {i + 1}번째 하트 💗
-          </Text>
-          <Text style={styles.yearText}>
             {i + 1}주년
           </Text>
 
-          <FullHeart />
+        <FullHeart />
         </View>
       ))}
     </ScrollView>
@@ -43,8 +40,10 @@ export default function CollectedHeartsPage({ startDate }: Props) {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: '#111',
     paddingVertical: 24,
     paddingBottom: 80,
+    paddingHorizontal: 16,
   },
   heartBlock: {
     marginBottom: 32,
@@ -52,18 +51,14 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
     color: '#fff',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  yearText: {
-    textAlign: 'center',
-    color: '#aaa',
-    marginBottom: 12,
-  },
   emptyWrap: {
-    flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#111',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
   emptyText: {
@@ -72,6 +67,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subText: {
-    color: '#777',
+   color: '#FF5D8F',
   },
 });

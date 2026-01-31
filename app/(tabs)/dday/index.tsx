@@ -11,7 +11,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '@/src/lib/supabase';
 import { AnniversaryList } from '@/src/components/dday/AnniversaryList';
 import { HeartProgress } from '@/src/components/dday/HeartProgress';
-import { router } from 'expo-router';
+import { CollectedHeartsPage } from '@/src/components/dday/CollectedHearts';
+
 
 export default function DdayPage() {
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export default function DdayPage() {
   const [editing, setEditing] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(new Date());
   const [showAnniversary, setShowAnniversary] = useState(false);
-  //const [showPicker, setShowPicker] = useState(false);
+  const [showCollectedHearts, setShowCollectedHearts] = useState(false);
 
   /* ------------------------------
    * 초기 로딩 (디데이 조회)
@@ -117,7 +118,7 @@ export default function DdayPage() {
 
       {/* 공백을 위한  .. 나중에 지우길 ⬇️  */}
       <Text style={styles.title}></Text>
-      <Text style={styles.title}>윤재랑 😳</Text>
+      <Text style={styles.title}>( 우리가 만난지 ..) </Text>
       <Text style={styles.dday}>D + {dday}</Text>
 
       <TouchableOpacity onPress={() => setEditing(true)}>
@@ -167,18 +168,16 @@ export default function DdayPage() {
         {showAnniversary && startDate && (
         <AnniversaryList startDate={startDate} />
         )}
-        <TouchableOpacity
-        onPress={() =>
-            router.push({
-            pathname: '/dday/hearts',
-            params: { startDate },
-            })
-        }
-        >
-        <Text style={{ color: '#FF5D8F' }}>
-            우리가 모은 하트 보기
+       
+       <TouchableOpacity onPress={() => setShowCollectedHearts((p) => !p)}>
+        <Text style={{ color: '#FF5D8F', marginTop: 16 }}>
+            {showCollectedHearts ? '하트 닫기' : '모은 하트 보기'}
         </Text>
         </TouchableOpacity>
+
+        {showCollectedHearts && startDate && (
+        <CollectedHeartsPage startDate={startDate} />
+        )}
 
     </View>
   );
