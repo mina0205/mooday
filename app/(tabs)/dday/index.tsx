@@ -12,6 +12,7 @@ import { supabase } from '@/src/lib/supabase';
 import { AnniversaryList } from '@/src/components/dday/AnniversaryList';
 import { HeartProgress } from '@/src/components/dday/HeartProgress';
 import { CollectedHeartsPage } from '@/src/components/dday/CollectedHearts';
+import { getDaysTogether } from '@/src/components/dday/getDaysTogether';
 
 
 export default function DdayPage() {
@@ -103,18 +104,19 @@ export default function DdayPage() {
     );
   }
 
-  const dday = calculateDDay(startDate);
-  const filledCount = Math.min(
-  Math.max(dday, 0),
-  365
-);
+  /* ------------------------------
+   * 하트 진행도 계산
+   * ------------------------------ */
+  const dday = getDaysTogether(startDate);
+  //const completedHearts = Math.floor(dday / 365);
+  const currentHeartDays = dday % 365 || 365;
 
 
   return (
     <View style={styles.container}>
 
       {/* 채워지는 하트 */}
-      <HeartProgress filledCount={filledCount} />
+      <HeartProgress filledCount={currentHeartDays} />
 
       {/* 공백을 위한  .. 나중에 지우길 ⬇️  */}
       <Text style={styles.title}></Text>
@@ -182,35 +184,6 @@ export default function DdayPage() {
     </View>
   );
 }
-
-/* ------------------------------
- * 유틸
- * ------------------------------ */
-export function calculateDDay(startDateStr: string): number {
-  const today = new Date();
-  const start = new Date(startDateStr);
-
-  // 미래 날짜 방어
-  if (start > today) return 0;
-
-  // ⏱ 타임존 제거 (자정 기준)
-  const todayUTC = Date.UTC(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  );
-  const startUTC = Date.UTC(
-    start.getFullYear(),
-    start.getMonth(),
-    start.getDate()
-  );
-
-  const diffDays =
-    Math.floor((todayUTC - startUTC) / (1000 * 60 * 60 * 24)) + 1;
-
-  return diffDays;
-}
-
 
 /* ------------------------------
  * 스타일

@@ -17,7 +17,6 @@ import { DaySchedulePanel } from '@/src/components/calendar/DaySchedulePanel';
 import {CoupleNotice } from '@/src/components/calendar/CoupleNotice';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-
 const COLORS = {
   MY: '#5DA9FF',
   PARTNER: '#7ED957',
@@ -60,7 +59,7 @@ export default function HomeTab() {
 
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
     setLoading(false);
     return;
