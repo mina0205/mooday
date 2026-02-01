@@ -37,21 +37,27 @@ useEffect(() => {
 
     setUserId(user.id);
 
-    // ✅ 커플 ID (RPC)
+    // 1️⃣ 커플 ID
     const { data: coupleId, error: coupleErr } =
       await supabase.rpc('get_my_couple_id');
 
-    if (coupleErr) {
+    if (coupleErr || !coupleId) {
       console.log('ℹ️ 커플 없음');
       setCoupleId(null);
+      setPartnerId(null);
       return;
     }
 
     setCoupleId(coupleId);
 
-    // ✅ 커플 유저들
-    const { data: userIds } =
+    // 2️⃣ 커플 유저들 
+    const { data: userIds, error: usersErr } =
       await supabase.rpc('get_couple_user_ids');
+
+    if (usersErr) {
+      console.error('❌ get_couple_user_ids error:', usersErr);
+      return;
+    }
 
     if (userIds?.length === 2) {
       const partner = userIds.find(id => id !== user.id);
@@ -62,12 +68,12 @@ useEffect(() => {
   init();
 }, []);
 
-  // userId가 설정되면 위시리스트 불러오기 (partnerId 선택적)
+  // userId가 설정되면 위시리스트 불러오기 
   useEffect(() => {
     if (userId) {
       loadWishlists();
     }
-  }, [userId, partnerId]);
+  }, [userId, partnerId, coupleId]);
 
   // 탭 포커스 시 자동 새로고침
   useFocusEffect(
@@ -81,14 +87,18 @@ useEffect(() => {
 
   const loadWishlists = async () => {
     if (!userId) return;
-    
-    console.log('📥 위시리스트 불러오기 시작...');
-    console.log('👤 userId:', userId);
-    console.log('💑 partnerId:', partnerId);
-    
+
+     if (coupleId && !partnerId) {
+    console.log('⏳ partnerId 아직 없음, fetch 대기');
+    return;
+  }
+   console.log('📥 위시리스트 불러오기 시작...');
+   console.log('👤 userId:', userId);
+   console.log('💑 partnerId:', partnerId);
+   console.log('👫 coupleId:', coupleId);
     setLoading(true);
     try {
-      const data = await fetchWishlists(userId, coupleId);
+      const data = await fetchWishlists(userId, partnerId, coupleId);
       console.log('✅ 전체 위시리스트:', data.length, '개');
       
       // 내 위시리스트 (개인)
@@ -169,7 +179,6 @@ useEffect(() => {
     console.log('🗑️ 삭제:', id);
     try {
       await deleteWishlist(id);
-      console.log('✅ 삭제 성공');
       
       // 모든 리스트에서 제거
       setMyWishlists(prev => prev.filter(item => item.id !== id));

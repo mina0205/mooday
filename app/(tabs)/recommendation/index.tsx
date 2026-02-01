@@ -26,8 +26,8 @@ interface DateCourse {
 
 export default function RecommendationScreen() {
   const [userId, setUserId] = useState<string | null>(null);
+  const [partnerId, setPartnerId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
-  
   const [step, setStep] = useState<'select' | 'result'>('select');
   const [selectedEmotion, setSelectedEmotion] = useState<Emotion | null>(null);
   const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
@@ -71,8 +71,8 @@ export default function RecommendationScreen() {
 
     try {
       // 위시리스트 불러오기
-      const wishlists = await fetchWishlists(userId, coupleId);
-      
+      const wishlists = await fetchWishlists(userId, partnerId, coupleId);
+
       // 해당 감정에 맞는 위시리스트 필터링
       const matchedWishlists = wishlists.filter(item => 
         item.mood && item.mood.includes(emotion)

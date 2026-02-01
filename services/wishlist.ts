@@ -7,35 +7,80 @@ import { WishlistItem, OwnerType } from '@/src/types/wishlist';
  * ========================= */
 export async function fetchWishlists(
   userId: string,
+  partnerId: string | null,
   coupleId: string | null
-): Promise<WishlistItem[]> {
-  let query = supabase
+) {
+
+  console.log('🚨 fetchWishlists called');
+  console.log('👤 userId:', userId);
+  console.log('👫 coupleId:', coupleId);
+  // 1️⃣ 내 개인 위시
+  const { data: personal, error: personalError } = await supabase
     .from('wishlist_items')
     .select('*')
-    .order('created_at', { ascending: false });
+    .eq('owner_type', 'PERSONAL')
+    .eq('owner_user_id', userId);
 
-  if (coupleId) {
-    // 개인 + 커플 위시
-    query = query.or(
-      `and(owner_user_id.eq.${userId},owner_type.eq.PERSONAL),and(couple_id.eq.${coupleId},owner_type.eq.COUPLE)`
-    );
-  } else {
-    // 커플 미연결 → 개인 위시만
-    query = query
-      .eq('owner_user_id', userId)
-      .eq('owner_type', 'PERSONAL');
+  if (personalError) {
+    console.error('❌ personal wishlist error:', personalError);
+    throw personalError;
   }
 
-  const { data, error } = await query;
+// 2️⃣ 상대방 개인 위시
+  let partnerPersonal: any[] = [];
+
+if (partnerId) {
+  const { data, error } = await supabase
+    .from('wishlist_items')
+    .select('*')
+    .eq('owner_type', 'PERSONAL')
+    .eq('owner_user_id', partnerId); 
 
   if (error) {
-    console.error('❌ fetchWishlists error:', error);
+    console.error('❌ partner personal wishlist error:', error);
     throw error;
   }
 
-  return data ?? [];
+  partnerPersonal = data ?? [];
 }
 
+  // 2️⃣ 커플 위시
+  let couple: any[] = [];
+
+  if (coupleId) {
+    const { data: coupleData, error: coupleError } = await supabase
+      .from('wishlist_items')
+      .select('*')
+      .eq('owner_type', 'COUPLE')
+      .eq('couple_id', coupleId);
+
+    if (coupleError) {
+      console.error('❌ couple wishlist error:', coupleError);
+      throw coupleError;
+    }
+
+    couple = coupleData ?? [];
+  }
+
+   // 4️⃣ 합치고 최신순 정렬
+  const merged = [
+    ...(personal ?? []),
+    ...(partnerPersonal ?? []),
+    ...couple,
+  ].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() -
+      new Date(a.created_at).getTime()
+  );
+
+  // 🔍 디버깅 로그
+  console.log('📊 personal:', personal?.length ?? 0);
+  console.log('📊 partner personal:', partnerPersonal?.length ?? 0);
+  console.log('📊 couple:', couple.length);
+  console.log('📊 merged:', merged.length);
+
+  return merged;
+  }
 
 /* =========================
  * 위시리스트 추가
@@ -93,13 +138,19 @@ export async function addWishlist(
  * 위시리스트 삭제
  * ========================= */
 export async function deleteWishlist(id: string) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('wishlist_items')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id'); 
 
   if (error) {
     console.error('❌ deleteWishlist error:', error);
     throw error;
+  }
+
+  // 실제로 삭제된 row가 없으면 실패로 처리(상대일정 삭제 방지)
+  if (!data || data.length === 0) {
+    throw new Error('DELETE_NOT_ALLOWED');
   }
 }
