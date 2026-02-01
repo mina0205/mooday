@@ -154,3 +154,31 @@ export async function deleteWishlist(id: string) {
     throw new Error('DELETE_NOT_ALLOWED');
   }
 }
+
+/* =========================
+ * 위시리스트 수정
+ * ========================= */
+export async function updateWishlist(
+  id: string,
+  title: string,
+  energy: string,
+  mood: string
+) {
+  const { data, error } = await supabase
+    .from('wishlist_items')
+    .update({
+      title,
+      energy,
+      mood,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ updateWishlist error:', error);
+    throw error;
+  }
+
+  return data;
+}

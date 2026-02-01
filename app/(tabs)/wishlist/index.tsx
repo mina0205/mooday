@@ -13,7 +13,7 @@ import { WishlistItem, OwnerType } from '@/src/types/wishlist';
 import WishlistCard from '@/components/WishlistCard';
 import AddWishlistModal from '@/components/AddWishlistModal';
 import GradientHeart from '@/components/GradientHeart';
-import { fetchWishlists, addWishlist, deleteWishlist } from '@/services/wishlist';
+import { fetchWishlists, addWishlist, deleteWishlist, updateWishlist } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
 
 export default function WishlistScreen() {
@@ -28,6 +28,9 @@ export default function WishlistScreen() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
+
+  const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
+
 
   // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
 useEffect(() => {
@@ -132,6 +135,7 @@ useEffect(() => {
     }
   };
 
+  // 위시 추가 
   const handleAddWishlist = async (
     title: string,
     energy: string,
@@ -160,7 +164,6 @@ useEffect(() => {
       
       console.log('✅ 저장 성공:', newWishlist);
       
-      // 해당 섹션에 추가
       if (ownerType === 'PERSONAL') {
         setMyWishlists([newWishlist, ...myWishlists]);
       } else {
@@ -175,6 +178,7 @@ useEffect(() => {
     }
   };
 
+  // 위시 삭제 
   const handleDeleteWishlist = async (id: string) => {
     console.log('🗑️ 삭제:', id);
     try {
@@ -191,6 +195,60 @@ useEffect(() => {
       Alert.alert('오류', '위시리스트 삭제에 실패했습니다.');
     }
   };
+
+// 위시 수정 모달 열기
+  const handleEditWishlist = (item: WishlistItem) => {
+  // 권한 체크 (UI 1차 방어)
+  if (
+    item.owner_type === 'PERSONAL' &&
+    item.owner_user_id !== userId
+  ) {
+    Alert.alert('권한 없음', '상대방의 위시는 수정할 수 없어요.');
+    return;
+  }
+
+  if (
+    item.owner_type === 'COUPLE' &&
+    item.couple_id !== coupleId
+  ) {
+    Alert.alert('권한 없음', '커플 위시만 수정할 수 있어요.');
+    return;
+  }
+
+  setEditingWishlist(item);
+  setModalOwnerType(item.owner_type);
+  setModalVisible(true);
+};
+
+// 위시 수정
+const handleUpdateWishlist = async (
+  id: string,
+  title: string,
+  energy: string,
+  mood: string
+) => {
+  try {
+    const updated = await updateWishlist(id, title, energy, mood);
+
+    setMyWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+    setPartnerWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+    setCoupleWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+
+    setModalVisible(false);
+    setEditingWishlist(null);
+
+    Alert.alert('성공', '위시리스트가 수정되었습니다!');
+  } catch (e) {
+    console.error('❌ 수정 실패:', e);
+    Alert.alert('오류', '수정에 실패했습니다.');
+  }
+};
 
   const openAddModal = (ownerType: OwnerType) => {
     setModalOwnerType(ownerType);
@@ -252,6 +310,7 @@ useEffect(() => {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist} 
                   currentUserId={userId || undefined}
                 />
               ))
@@ -277,6 +336,7 @@ useEffect(() => {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist}
                   currentUserId={userId || undefined}
                 />
               ))
@@ -308,6 +368,7 @@ useEffect(() => {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist}
                   currentUserId={userId || undefined}
                 />
               ))
@@ -318,8 +379,14 @@ useEffect(() => {
 
       <AddWishlistModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+        onClose={() => {
+        setModalVisible(false);
+        setEditingWishlist(null);
+      }}
         onAdd={handleAddWishlist}
+        onUpdate={handleUpdateWishlist}
+        initialItem={editingWishlist}  
+        mode={editingWishlist ? 'edit' : 'create'}
         isCouple={modalOwnerType === 'COUPLE'}
       />
     </View>
