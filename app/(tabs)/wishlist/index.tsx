@@ -13,7 +13,7 @@ import { WishlistItem, OwnerType } from '@/src/types/wishlist';
 import WishlistCard from '@/components/WishlistCard';
 import AddWishlistModal from '@/components/AddWishlistModal';
 import GradientHeart from '@/components/GradientHeart';
-import { fetchWishlists, addWishlist, deleteWishlist } from '@/services/wishlist';
+import { fetchWishlists, addWishlist, deleteWishlist, updateWishlist } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
 
 export default function WishlistScreen() {
@@ -29,61 +29,54 @@ export default function WishlistScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
 
-  // 현재 사용자 확인 및 커플 정보 가져오기
-  useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('✅ 로그인된 사용자:', user.id);
-        setUserId(user.id);
-        
-        // 이 사용자가 속한 커플 찾기
-        try {
-          const { data: myCouple, error: coupleError } = await supabase
-            .from('couple_members')
-            .select('couple_id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          
-          if (coupleError) {
-            console.log('⚠️ 커플 정보 조회 실패:', coupleError);
-          } else if (myCouple) {
-            console.log('✅ 커플 ID:', myCouple.couple_id);
-            setCoupleId(myCouple.couple_id);
-            
-            // 상대방 ID 가져오기
-            const { data: partnerData, error: partnerError } = await supabase
-              .from('couple_members')
-              .select('user_id')
-              .eq('couple_id', myCouple.couple_id)
-              .neq('user_id', user.id)
-              .maybeSingle();
-            
-            if (partnerError) {
-              console.log('⚠️ 상대방 정보 조회 실패:', partnerError);
-            } else if (partnerData) {
-              console.log('✅ 상대방 ID:', partnerData.user_id);
-              setPartnerId(partnerData.user_id);
-            } else {
-              console.log('ℹ️ 상대방 없음 (커플 대기 중)');
-            }
-          } else {
-            console.log('ℹ️ 커플 연동 안 됨 (개인 사용자)');
-          }
-        } catch (error) {
-          console.log('⚠️ 커플 정보 조회 중 예외:', error);
-        }
-      }
-    }
-    init();
-  }, []);
+  const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
 
-  // userId가 설정되면 위시리스트 불러오기 (partnerId 선택적)
+
+  // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
+useEffect(() => {
+  async function init() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setUserId(user.id);
+
+    // 1️⃣ 커플 ID
+    const { data: coupleId, error: coupleErr } =
+      await supabase.rpc('get_my_couple_id');
+
+    if (coupleErr || !coupleId) {
+      console.log('ℹ️ 커플 없음');
+      setCoupleId(null);
+      setPartnerId(null);
+      return;
+    }
+
+    setCoupleId(coupleId);
+
+    // 2️⃣ 커플 유저들 
+    const { data: userIds, error: usersErr } =
+      await supabase.rpc('get_couple_user_ids');
+
+    if (usersErr) {
+      console.error('❌ get_couple_user_ids error:', usersErr);
+      return;
+    }
+
+    if (userIds?.length === 2) {
+      const partner = userIds.find(id => id !== user.id);
+      setPartnerId(partner ?? null);
+    }
+  }
+
+  init();
+}, []);
+
+  // userId가 설정되면 위시리스트 불러오기 
   useEffect(() => {
     if (userId) {
       loadWishlists();
     }
-  }, [userId, partnerId]);
+  }, [userId, partnerId, coupleId]);
 
   // 탭 포커스 시 자동 새로고침
   useFocusEffect(
@@ -97,14 +90,18 @@ export default function WishlistScreen() {
 
   const loadWishlists = async () => {
     if (!userId) return;
-    
-    console.log('📥 위시리스트 불러오기 시작...');
-    console.log('👤 userId:', userId);
-    console.log('💑 partnerId:', partnerId);
-    
+
+     if (coupleId && !partnerId) {
+    console.log('⏳ partnerId 아직 없음, fetch 대기');
+    return;
+  }
+   console.log('📥 위시리스트 불러오기 시작...');
+   console.log('👤 userId:', userId);
+   console.log('💑 partnerId:', partnerId);
+   console.log('👫 coupleId:', coupleId);
     setLoading(true);
     try {
-      const data = await fetchWishlists(userId, coupleId);
+      const data = await fetchWishlists(userId, partnerId, coupleId);
       console.log('✅ 전체 위시리스트:', data.length, '개');
       
       // 내 위시리스트 (개인)
@@ -113,9 +110,9 @@ export default function WishlistScreen() {
       );
       
       // 상대방 위시리스트 (개인) - partnerId 있을 때만
-      const partner = partnerId ? data.filter(
-        item => item.owner_user_id === partnerId && item.owner_type === 'PERSONAL'
-      ) : [];
+      const partner = data.filter(
+        item => item.owner_type === 'PERSONAL' && item.owner_user_id !== userId
+      );
       
       // 우리의 위시리스트 (커플 공유)
       const couple = data.filter(
@@ -138,12 +135,16 @@ export default function WishlistScreen() {
     }
   };
 
+  // 위시 추가 
   const handleAddWishlist = async (
     title: string,
     energy: string,
     mood: string,
     ownerType: OwnerType
   ) => {
+
+    console.log('🧩 WishlistScreen coupleId:', coupleId);
+    console.log('🧩 ownerType:', ownerType);
     if (!userId) {
       Alert.alert('알림', '로그인이 필요합니다.');
       return;
@@ -163,7 +164,6 @@ export default function WishlistScreen() {
       
       console.log('✅ 저장 성공:', newWishlist);
       
-      // 해당 섹션에 추가
       if (ownerType === 'PERSONAL') {
         setMyWishlists([newWishlist, ...myWishlists]);
       } else {
@@ -178,11 +178,11 @@ export default function WishlistScreen() {
     }
   };
 
+  // 위시 삭제 
   const handleDeleteWishlist = async (id: string) => {
     console.log('🗑️ 삭제:', id);
     try {
       await deleteWishlist(id);
-      console.log('✅ 삭제 성공');
       
       // 모든 리스트에서 제거
       setMyWishlists(prev => prev.filter(item => item.id !== id));
@@ -195,6 +195,60 @@ export default function WishlistScreen() {
       Alert.alert('오류', '위시리스트 삭제에 실패했습니다.');
     }
   };
+
+// 위시 수정 모달 열기
+  const handleEditWishlist = (item: WishlistItem) => {
+  // 권한 체크 (UI 1차 방어)
+  if (
+    item.owner_type === 'PERSONAL' &&
+    item.owner_user_id !== userId
+  ) {
+    Alert.alert('권한 없음', '상대방의 위시는 수정할 수 없어요.');
+    return;
+  }
+
+  if (
+    item.owner_type === 'COUPLE' &&
+    item.couple_id !== coupleId
+  ) {
+    Alert.alert('권한 없음', '커플 위시만 수정할 수 있어요.');
+    return;
+  }
+
+  setEditingWishlist(item);
+  setModalOwnerType(item.owner_type);
+  setModalVisible(true);
+};
+
+// 위시 수정
+const handleUpdateWishlist = async (
+  id: string,
+  title: string,
+  energy: string,
+  mood: string
+) => {
+  try {
+    const updated = await updateWishlist(id, title, energy, mood);
+
+    setMyWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+    setPartnerWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+    setCoupleWishlists(prev =>
+      prev.map(item => item.id === id ? updated : item)
+    );
+
+    setModalVisible(false);
+    setEditingWishlist(null);
+
+    Alert.alert('성공', '위시리스트가 수정되었습니다!');
+  } catch (e) {
+    console.error('❌ 수정 실패:', e);
+    Alert.alert('오류', '수정에 실패했습니다.');
+  }
+};
 
   const openAddModal = (ownerType: OwnerType) => {
     setModalOwnerType(ownerType);
@@ -256,6 +310,7 @@ export default function WishlistScreen() {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist} 
                   currentUserId={userId || undefined}
                 />
               ))
@@ -281,6 +336,7 @@ export default function WishlistScreen() {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist}
                   currentUserId={userId || undefined}
                 />
               ))
@@ -312,6 +368,7 @@ export default function WishlistScreen() {
                   key={item.id} 
                   item={item} 
                   onDelete={handleDeleteWishlist}
+                  onPress={handleEditWishlist}
                   currentUserId={userId || undefined}
                 />
               ))
@@ -322,8 +379,14 @@ export default function WishlistScreen() {
 
       <AddWishlistModal
         visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+        onClose={() => {
+        setModalVisible(false);
+        setEditingWishlist(null);
+      }}
         onAdd={handleAddWishlist}
+        onUpdate={handleUpdateWishlist}
+        initialItem={editingWishlist}  
+        mode={editingWishlist ? 'edit' : 'create'}
         isCouple={modalOwnerType === 'COUPLE'}
       />
     </View>

@@ -1,6 +1,7 @@
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity,Alert, } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/src/lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 type Notice = {
   id: string;
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function CoupleNotice({ coupleId }: Props) {
+  const [user, setUser] = useState<User | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [input, setInput] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -21,9 +23,20 @@ export function CoupleNotice({ coupleId }: Props) {
    * 공지 조회 <- 커플 아이디가 있어야 가능 
   * ------------------------------ */
   useEffect(() => {
-    if (!coupleId) return;
-    fetchNotices();
-  }, [coupleId]);
+  if (!coupleId) {
+    setLoading(false);
+    return;
+  }
+  fetchNotices();
+}, [coupleId]);
+
+useEffect(() => {
+  const loadUser = async () => {
+    const { data } = await supabase.auth.getUser();
+    setUser(data.user);
+  };
+  loadUser();
+}, []);
 
   const fetchNotices = async () => {
     const { data, error } = await supabase
@@ -42,34 +55,58 @@ export function CoupleNotice({ coupleId }: Props) {
   };
 
   /* ------------------------------
-   * 추가 / 수정
+   * 공지 추가 / 수정 (커플이면 가능)
    * ------------------------------ */
   const saveNotice = async () => {
-    if (!input.trim()) return;
+  if (!user) return;
+  if (!input.trim()) return;
 
-    if (editingId) {
-      // 수정
-      await supabase
-        .from('couple_notices')
-        .update({ content: input })
-        .eq('id', editingId);
-    } else {
-      // 추가
-      await supabase
-        .from('couple_notices')
-        .insert({
-          couple_id: coupleId,
-          content: input,
-        });
+  if (editingId) {
+    const { data, error } = await supabase
+      .from('couple_notices')
+      .update({ content: input })
+      .eq('id', editingId)
+      .select();
+
+    if (error || !data || data.length === 0) {
+      Alert.alert('수정 실패', '공지 수정에 실패했어요');
+      return;
     }
 
-    setInput('');
-    setEditingId(null);
-    fetchNotices();
-  };
+    // 즉시 UI 반영
+    setNotices((prev) =>
+      prev.map((n) =>
+        n.id === editingId
+          ? { ...n, content: data[0].content }
+          : n
+      )
+    );
+  }
+  else {
+    const { data, error } = await supabase
+      .from('couple_notices')
+      .insert({
+        couple_id: coupleId,
+        content: input,
+        owner_user_id: user.id,
+      })
+      .select();
+
+    if (error || !data || data.length === 0) {
+      Alert.alert('저장 실패', error?.message ?? '공지 저장 실패');
+      return;
+    }
+
+    setNotices((prev) => [...prev, data[0]]);
+  }
+
+  setInput('');
+  setEditingId(null);
+};
+
 
   /* ------------------------------
-   * 삭제
+   * 공지 삭제 (커플이면 가능)
    * ------------------------------ */
   const deleteNotice = async (id: string) => {
     await supabase

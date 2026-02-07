@@ -16,38 +16,6 @@ type Props = {
   onSelectDate: (date: string) => void;
 };
 
-/* 일정 → 색상 */
-function getColor(s: Schedule, myUserId: string) {
-  if (s.owner_type === 'COUPLE') return COLORS.COUPLE;
-  if (s.owner_user_id === myUserId) return COLORS.MY;
-  return COLORS.PARTNER;
-}
-
-/* 날짜 +1 */
-function addDays(dateString: string, days: number) {
-  const d = new Date(dateString);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function groupSchedulesByDate(schedules: Schedule[]) {
-  const map: Record<string, Schedule[]> = {};
-
-  schedules.forEach((s) => {
-    const start = s.start_date;
-    const end = s.end_date ?? s.start_date;
-
-    let current = start;
-    while (current <= end) {
-      if (!map[current]) map[current] = [];
-      map[current].push(s);
-      current = addDays(current, 1);
-    }
-  });
-
-  return map;
-}
-
 
 export function CalendarView({
   schedules,
@@ -132,4 +100,38 @@ export function CalendarView({
       }
     />
   );
+
+  // ------ 기능 -----
+  /* 일정 → 색상 */
+function getColor(s: Schedule, myUserId: string) {
+  if (s.owner_type === 'COUPLE') return COLORS.COUPLE;
+  if (s.owner_user_id === myUserId) return COLORS.MY;
+  return COLORS.PARTNER;
+}
+
+/* 날짜 +1 */
+function addDays(dateString: string, days: number) {
+  const d = new Date(dateString);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function groupSchedulesByDate(schedules: Schedule[]) {
+  const map: Record<string, Schedule[]> = {};
+
+  schedules.forEach((s) => {
+    const start = s.start_date;
+    const end = s.end_date ?? s.start_date;
+
+    let current = start;
+    while (current <= end) {
+      if (!map[current]) map[current] = [];
+      map[current].push(s);
+      current = addDays(current, 1);
+    }
+  });
+
+  return map;
+}
+
 }
