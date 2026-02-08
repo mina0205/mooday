@@ -4,7 +4,8 @@ export type OwnerType = 'PERSONAL' | 'COUPLE';
 export interface WishlistItem {
   id: string;
   title: string;
-  energy: string;
+  energy: string;        // UI 표시용
+  energy_score: number;  // 실제 점수
   mood: string;
   owner_type: OwnerType;
   owner_user_id: string;

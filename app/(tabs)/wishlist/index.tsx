@@ -139,6 +139,7 @@ useEffect(() => {
   const handleAddWishlist = async (
     title: string,
     energy: string,
+    energyScore: number,
     mood: string,
     ownerType: OwnerType
   ) => {
@@ -158,12 +159,13 @@ useEffect(() => {
         coupleId,
         title,
         energy,
+        energyScore,
         mood,
         ownerType
       );
       
-      console.log('✅ 저장 성공:', newWishlist);
-      
+      console.log('🎯 위시리스트 추가:', { title, energy, energyScore, mood, ownerType });
+
       if (ownerType === 'PERSONAL') {
         setMyWishlists([newWishlist, ...myWishlists]);
       } else {
@@ -225,10 +227,11 @@ const handleUpdateWishlist = async (
   id: string,
   title: string,
   energy: string,
+  energyScore: number, 
   mood: string
 ) => {
   try {
-    const updated = await updateWishlist(id, title, energy, mood);
+    const updated = await updateWishlist(id, title, energy, energyScore,mood);
 
     setMyWishlists(prev =>
       prev.map(item => item.id === id ? updated : item)
