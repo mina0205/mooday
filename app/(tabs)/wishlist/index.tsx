@@ -140,6 +140,7 @@ useEffect(() => {
     title: string,
     energy: string,
     energyScore: number,
+    energySource: string,
     mood: string,
     ownerType: OwnerType
   ) => {
@@ -160,6 +161,7 @@ useEffect(() => {
         title,
         energy,
         energyScore,
+        energySource,
         mood,
         ownerType
       );
@@ -228,10 +230,11 @@ const handleUpdateWishlist = async (
   title: string,
   energy: string,
   energyScore: number, 
+  energySource: string,
   mood: string
 ) => {
   try {
-    const updated = await updateWishlist(id, title, energy, energyScore,mood);
+    const updated = await updateWishlist(id, title, energy, energyScore, energySource, mood);
 
     setMyWishlists(prev =>
       prev.map(item => item.id === id ? updated : item)

@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { OwnerType, WishlistItem } from '@/src/types/wishlist';
-import { analyzeWishlist } from '@/services/wishlistAnalyzer';
+import { analyzeWishlist } from '@/services/analyzeWishlist';
 
 interface AddWishlistModalProps {
   visible: boolean;
@@ -21,6 +21,7 @@ interface AddWishlistModalProps {
     title: string,
     energy: string,
     energyScore: number,
+    energySource: string,
     mood: string,
     ownerType: OwnerType
   ) => void;
@@ -31,6 +32,7 @@ interface AddWishlistModalProps {
     title: string,
     energy: string,
     energyScore: number,
+    energySource: string,
     mood: string
   ) => void;
 
@@ -73,6 +75,7 @@ export default function AddWishlistModal({
         analyzed.title,
         analyzed.energy,
         analyzed.energy_score,
+        analyzed.energy_source,
         analyzed.mood,
         ownerType
       );
@@ -84,6 +87,7 @@ export default function AddWishlistModal({
         analyzed.title,
         analyzed.energy,
         analyzed.energy_score,
+        analyzed.energy_source,
         analyzed.mood
       );
     }

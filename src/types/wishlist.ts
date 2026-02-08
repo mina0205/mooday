@@ -1,15 +1,29 @@
+import type { EnergySource } from './wishlistAnalyzer';
+
 export type OwnerType = 'PERSONAL' | 'COUPLE';
 
-// 위시리스트 타입 정의
 export interface WishlistItem {
   id: string;
+
   title: string;
-  energy: string;        // UI 표시용
-  energy_score: number;  // 실제 점수
+
+  // UI 표시
+  energy: '낮음' | '중간' | '높음';
+
+  // 추천 핵심
+  energy_score: 1 | 3 | 5;
+
+  // 점수 산출 출처
+  energy_source: EnergySource;
+
   mood: string;
+
   owner_type: OwnerType;
-  owner_user_id: string;
-  couple_id: string;
+
+  owner_user_id: string | null;
+  couple_id: string | null;
+
   created_at: string;
-  original_text?: string; // 사용자가 입력한 원본 텍스트 (선택적)
+
+  original_text?: string;
 }

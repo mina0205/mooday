@@ -90,7 +90,8 @@ export async function addWishlist(
   coupleId: string | null,
   title: string,
   energy: string,
-  energyScore: number, 
+  energyScore: number,
+  energySource: string,
   mood: string,
   ownerType: OwnerType
 ): Promise<WishlistItem> {
@@ -111,7 +112,8 @@ export async function addWishlist(
   const payload = {
     title,
     energy,
-    energy_score: energyScore, // ⭐ 핵심
+    energy_score: energyScore,
+    energy_source: energySource,
     mood,
     owner_type: ownerType,
     owner_user_id: ownerType === 'PERSONAL' ? userId : null,
@@ -162,7 +164,8 @@ export async function updateWishlist(
   id: string,
   title: string,
   energy: string,
-  energyScore: number, 
+  energyScore: number,
+  energySource: string,
   mood: string
 ): Promise<WishlistItem> {
   const { data, error } = await supabase
@@ -170,9 +173,9 @@ export async function updateWishlist(
     .update({
       title,
       energy,
-      energy_score: energyScore, 
+      energy_score: energyScore,
+      energy_source: energySource,
       mood,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', id)
     .select()
