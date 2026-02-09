@@ -1,7 +1,7 @@
 import AddWishlistModal from '@/components/AddWishlistModal';
 import GradientHeart from '@/components/GradientHeart';
 import WishlistCard from '@/components/WishlistCard';
-import { addWishlist, deleteWishlist, fetchWishlists } from '@/services/wishlist';
+import { addWishlist, deleteWishlist, fetchWishlists, updateWishlist } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
 import { OwnerType, WishlistItem } from '@/src/types/wishlist';
 import { useFocusEffect } from '@react-navigation/native';
