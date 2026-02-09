@@ -81,30 +81,22 @@ export default function RecommendationScreen() {
     init();
   }, []);
 
-  /* =========================
-   * 오늘 감정 확인 및 초기화
-   * ========================= */
-  const checkTodayEmotionAndInit = async (
-  userId: string,
-  coupleId: string
-) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // 감정별 에너지 레벨 매핑
+  const getEnergyForEmotion = (emotion: Emotion): string[] => {
+    const energyMap: Record<Emotion, string[]> = {
+      '설렘': ['중간', '높음'],
+      '행복': ['높음', '중간'],
+      '피곤함': ['낮음'],
+      '우울함': ['낮음', '중간'],
+      '화남': ['높음'],
+    };
+    return energyMap[emotion];
+  };
 
-  const { data: logs, error } = await supabase
-    .from('emotion_logs')
-    .select('id')
-    .eq('couple_id', coupleId)
-    .eq('date', today);
-
-    console.log('📌 step before set:', step);
-console.log('📌 recommendations count:', recommendations.length);  
-  if (error) {
-    console.error('❌ emotion_logs 조회 실패:', error);
-    return;
-  }
-
-  if (logs && logs.length >= 2) {
-    await loadRecommendations(coupleId);
+  // 감정 선택 - 개선된 버전
+  const handleEmotionSelect = async (emotion: Emotion) => {
+    setSelectedEmotion(emotion);
+    setLoading(true);
     setStep('result');
   } else {
     setStep('select');
@@ -123,36 +115,54 @@ console.log('📌 recommendations count:', recommendations.length);
     const today = new Date().toISOString().slice(0, 10);
 
     try {
-      setLoading(true);
-
-      // 오늘 감정 upsert
-      const { error } = await supabase
-      .from('emotion_logs')
-      .upsert(
-        {
-          couple_id: coupleId,
-          user_id: userId,
-          emotion_code: emotion,
-          emotion_score: score,
-          date: today,
-        },
-        {
-          onConflict: 'user_id,date', // ⭐ 핵심
+      // 위시리스트 불러오기
+      const wishlists = await fetchWishlists(userId!, coupleId);
+      const preferredEnergies = getEnergyForEmotion(emotion);
+      
+      // 점수 기반 매칭
+      const scoredWishlists = wishlists.map(item => {
+        let score = 0;
+        
+        // mood 매칭 (가장 중요) - 감정이 포함되어 있으면 높은 점수
+        if (item.mood && item.mood.includes(emotion)) {
+          score += 10;
         }
-      );
+        
+        // energy 매칭 - 감정에 맞는 에너지 레벨이면 추가 점수
+        if (item.energy && preferredEnergies.includes(item.energy)) {
+          score += 5;
+        }
+        
+        return { ...item, score };
+      })
+      .filter(item => item.score > 0) // 점수가 있는 것만
+      .sort((a, b) => b.score - a.score); // 점수 높은 순
 
-    if (error) {
-      console.error('❌ emotion_logs upsert error:', error);
-      throw error;
-    }
+      console.log('📊 매칭된 위시리스트:', scoredWishlists);
 
-      // 추천 로드
-      await loadRecommendations(coupleId);
-      setStep('result');
+      // 상위 3개를 추천 코스로 변환
+      const wishlistCourses: DateCourse[] = scoredWishlists
+        .slice(0, 3)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          category: getCategoryByEnergy(item.energy),
+          source: 'wishlist',
+          description: `${item.energy} 에너지 · ${item.mood}`,
+        }));
 
-    } catch (e) {
-      console.error('❌ 감정 저장 실패:', e);
-      Alert.alert('오류', '감정 저장에 실패했어요.');
+      // AI 더미 추천 (부족한 만큼만 추가)
+      const aiCount = Math.max(0, 4 - wishlistCourses.length);
+      const aiCourses = generateAICourses(emotion).slice(0, aiCount);
+      
+      // 최종 추천 리스트
+      const allCourses = [...wishlistCourses, ...aiCourses];
+      setRecommendations(allCourses);
+      
+    } catch (error) {
+      console.error('추천 생성 실패:', error);
+      // 에러 발생시 더미 데이터만 보여주기
+      setRecommendations(generateAICourses(emotion).slice(0, 4));
     } finally {
       setLoading(false);
     }
@@ -323,19 +333,27 @@ console.log('📌 recommendations count:', recommendations.length);
       </View>
 
       <View style={styles.content}>
-        {recommendations.map((course, idx) => (
-          <View key={course.id} style={styles.courseCard}>
-            <View style={styles.courseNumber}>
-              <Text style={styles.courseNumberText}>{idx + 1}</Text>
-            </View>
-            <View style={styles.courseInfo}>
-              <View style={styles.courseTitleRow}>
-                <Text style={styles.courseTitle}>{course.title}</Text>
-                {course.source === 'wishlist' && (
-                  <View style={styles.wishlistBadge}>
-                    <Text style={styles.wishlistBadgeText}>위시</Text>
+        {recommendations.length > 0 ? (
+          recommendations.map((course, index) => (
+            <View key={course.id} style={styles.courseCard}>
+              <View style={styles.courseHeader}>
+                <View style={styles.courseNumber}>
+                  <Text style={styles.courseNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.courseInfo}>
+                  <View style={styles.courseTitleRow}>
+                    <Text style={styles.courseTitle}>{course.title}</Text>
+                    {course.source === 'wishlist' && (
+                      <View style={styles.wishlistBadge}>
+                        <Text style={styles.wishlistBadgeText}>위시</Text>
+                      </View>
+                    )}
                   </View>
-                )}
+                  <Text style={styles.courseCategory}>{course.category}</Text>
+                  {course.description && (
+                    <Text style={styles.courseDescription}>{course.description}</Text>
+                  )}
+                </View>
               </View>
               <Text style={styles.courseCategory}>{course.category}</Text>
               {course.description && (
@@ -344,8 +362,15 @@ console.log('📌 recommendations count:', recommendations.length);
                 </Text>
               )}
             </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              😢 추천할 데이트 코스가 없어요.{'\n'}
+              위시리스트에 데이트 아이디어를 추가해보세요!
+            </Text>
           </View>
-        ))}
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -494,6 +519,16 @@ const styles = StyleSheet.create({
   courseDescription: {
     fontSize: 13,
     color: '#666',
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   footer: {
     padding: 20,
