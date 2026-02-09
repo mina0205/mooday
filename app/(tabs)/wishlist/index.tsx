@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { WishlistItem, OwnerType } from '@/src/types/wishlist';
-import WishlistCard from '@/components/WishlistCard';
 import AddWishlistModal from '@/components/AddWishlistModal';
 import GradientHeart from '@/components/GradientHeart';
-import { fetchWishlists, addWishlist, deleteWishlist } from '@/services/wishlist';
+import WishlistCard from '@/components/WishlistCard';
+import { addWishlist, deleteWishlist, fetchWishlists } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
+import { OwnerType, WishlistItem } from '@/src/types/wishlist';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function WishlistScreen() {
   const [userId, setUserId] = useState<string | null>(null);
