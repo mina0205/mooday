@@ -25,6 +25,11 @@ export default function WishlistCard({
     onDelete(item.id);
   };
 
+  // 삭제 가능 여부 
+  const canDelete =
+    item.owner_type === 'COUPLE' ||
+    item.owner_user_id === currentUserId;
+
   // 하트 색깔
   const renderHeart = () => {
     if (item.owner_type === 'COUPLE') {
@@ -50,16 +55,17 @@ export default function WishlistCard({
             <Text style={styles.title}>{item.title}</Text>
           </View>
 
-          {/* 삭제 버튼 */}
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation(); // ✅ 카드 클릭 막기
-              handleDelete();
-            }}
-            style={styles.deleteButton}
-          >
-            <Text style={styles.deleteIcon}>✕</Text>
-          </TouchableOpacity>
+          {canDelete && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              style={styles.deleteButton}
+            >
+              <Text style={styles.deleteIcon}>✕</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.footer}>
@@ -112,7 +118,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 8,
     marginLeft: 8,
-  },
+  },  
   deleteIcon: {
     fontSize: 24,
     color: '#999',
