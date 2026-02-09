@@ -1,60 +1,80 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
 import { WishlistItem } from '@/src/types/wishlist';
 import GradientHeart from '@/components/GradientHeart';
 
-interface WishlistCardProps {
+export interface WishlistCardProps {
   item: WishlistItem;
   onDelete: (id: string) => void;
-  currentUserId?: string; // 현재 사용자 ID (선택적)
+  onPress?: (item: WishlistItem) => void; // ✅ 수정용
+  currentUserId?: string;
 }
 
-export default function WishlistCard({ item, onDelete, currentUserId }: WishlistCardProps) {
+export default function WishlistCard({
+  item,
+  onDelete,
+  onPress,
+  currentUserId,
+}: WishlistCardProps) {
   const handleDelete = () => {
     onDelete(item.id);
   };
 
-  // 하트 색깔 결정
+  // 삭제 가능 여부 
+  const canDelete =
+    item.owner_type === 'COUPLE' ||
+    item.owner_user_id === currentUserId;
+
+  // 하트 색깔
   const renderHeart = () => {
     if (item.owner_type === 'COUPLE') {
-      // 커플 공유 = 그라데이션 하트
       return <GradientHeart size={20} />;
-    } else if (item.owner_user_id === currentUserId) {
-      // 내가 추가한 것 = 붉은색 하트
-      return (
-        <View style={styles.heartContainer}>
-          <Text style={styles.redHeart}>♥</Text>
-        </View>
-      );
-    } else {
-      // 상대방이 추가한 것 = 하늘색 하트
-      return (
-        <View style={styles.heartContainer}>
-          <Text style={styles.blueHeart}>♥</Text>
-        </View>
-      );
     }
+
+    if (item.owner_user_id === currentUserId) {
+      return <Text style={styles.redHeart}>♥</Text>;
+    }
+
+    return <Text style={styles.blueHeart}>♥</Text>;
   };
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.titleContainer}>
-          {renderHeart()}
-          <Text style={styles.title}>{item.title}</Text>
-        </View>
-        
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-          <Text style={styles.deleteIcon}>✕</Text>
-        </TouchableOpacity>
-      </View>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => onPress?.(item)} // ✅ 카드 클릭 → 수정
+    >
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.titleContainer}>
+            {renderHeart()}
+            <Text style={styles.title}>{item.title}</Text>
+          </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          {item.owner_type === 'COUPLE' ? '💑 커플 공유' : '👤 개인'}
-        </Text>
+          {canDelete && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              style={styles.deleteButton}
+            >
+              <Text style={styles.deleteIcon}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            {item.owner_type === 'COUPLE' ? '💑 커플' : '👤 개인'}
+          </Text>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -74,7 +94,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -88,12 +107,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
-  heartContainer: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   redHeart: {
     fontSize: 20,
     color: '#F58A7A',
@@ -105,7 +118,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 8,
     marginLeft: 8,
-  },
+  },  
   deleteIcon: {
     fontSize: 24,
     color: '#999',
