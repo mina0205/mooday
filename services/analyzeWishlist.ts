@@ -44,6 +44,7 @@ function analyzeWishlistByRule(text: string): AnalyzedWishlist | null {
  * ✅ 최종 분석 함수 (rule → AI)
  * ========================= */
 export async function analyzeWishlist(text: string): Promise<AnalyzedWishlist> {
+  
   // 1️⃣ rule 우선
   const ruleResult = analyzeWishlistByRule(text);
   if (ruleResult) return ruleResult;
@@ -56,8 +57,12 @@ export async function analyzeWishlist(text: string): Promise<AnalyzedWishlist> {
     }
   );
 
-  console.log('🧪 invoke result:', { data, error });
-  
+  console.log("🧪 invoke result:", {
+  data,
+  error,
+  status: error?.context?.status
+});
+
   if (error || !data) {
     console.error('❌ analyze-wishlist failed:', error);
     return {

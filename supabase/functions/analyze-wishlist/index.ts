@@ -11,6 +11,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req) => {
 
+  console.log("🔥 FUNCTION HIT");
+
   // 🔥 CORS preflight 대응
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -54,7 +56,7 @@ serve(async (req) => {
     }
 
     /* =========================
-     * 🔥 공격적인 프롬프트
+     *  프롬프트
      * ========================= */
     const prompt = `
 너는 커플 데이트 앱의 "에너지 판단 전문가"야.
@@ -71,7 +73,7 @@ serve(async (req) => {
 - 많이 걷기 / 놀이공원 / 여행 / 스포츠 → 높음 (5)
 
 중간(3)은:
-- 가벼운 외출 + 이동이 조금 있는 경우만 허용
+- 가벼운 외출 + 간단한 밥 먹기 +이동이 조금 있는 경우만 허용
 
 출력은 반드시 JSON 하나만:
 {
