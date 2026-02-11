@@ -56,6 +56,8 @@ export async function analyzeWishlist(text: string): Promise<AnalyzedWishlist> {
     }
   );
 
+  console.log('🧪 invoke result:', { data, error });
+  
   if (error || !data) {
     console.error('❌ analyze-wishlist failed:', error);
     return {

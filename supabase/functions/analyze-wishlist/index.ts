@@ -1,15 +1,56 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 serve(async (req) => {
+
+  // 🔥 CORS preflight 대응
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
+    if (!OPENAI_API_KEY) {
+      console.error("🔥 OPENAI_API_KEY missing");
+      return new Response(
+        JSON.stringify({
+          energy: '중간',
+          energy_score: 3,
+          energy_source: 'ai',
+        }),
+        { status: 200,
+          headers: { 
+      ...corsHeaders,
+      'Content-Type': 'application/json'
+    }
+         }
+      );
+    }
+
     const { text, wishlist_id, user_id } = await req.json();
 
     if (!text || typeof text !== 'string') {
-      return new Response(JSON.stringify({ error: 'Invalid text' }), { status: 400 });
+     return new Response(
+      JSON.stringify({
+        energy: '중간',
+        energy_score: 3,
+        energy_source: 'ai',
+      }),
+      { status: 200 ,
+        headers: { 
+      ...corsHeaders,
+      'Content-Type': 'application/json'
+    }
+      }
+);
+
     }
 
     /* =========================
@@ -62,8 +103,22 @@ serve(async (req) => {
     });
 
     if (!openaiRes.ok) {
-      throw new Error('OpenAI API error');
+      console.error("🔥 OpenAI status:", openaiRes.status);
+      return new Response(
+        JSON.stringify({
+          energy: '중간',
+          energy_score: 3,
+          energy_source: 'ai',
+        }),
+        { status: 200,
+          headers: { 
+      ...corsHeaders,
+      'Content-Type': 'application/json'
     }
+         }
+      );
+    }
+
 
     const json = await openaiRes.json();
     const raw = json.choices?.[0]?.message?.content;
@@ -113,7 +168,8 @@ serve(async (req) => {
         energy_score: parsed.energy_score,
         energy_source: 'ai',
       }),
-      { headers: { 'Content-Type': 'application/json' } }
+      {status: 200,
+       headers: { 'Content-Type': 'application/json' } }
     );
 
   } catch (err) {
@@ -125,7 +181,12 @@ serve(async (req) => {
         energy_score: 3,
         energy_source: 'ai',
       }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { status: 200,
+    headers: { 
+      ...corsHeaders,
+      'Content-Type': 'application/json'
+    }
+   }
     );
   }
 });

@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase';
-import { WishlistItem, OwnerType } from '@/src/types/wishlist';
+import { OwnerType, WishlistItem } from '@/src/types/wishlist';
 import { analyzeWishlist } from './analyzeWishlist';
 
 /* =========================
@@ -7,38 +7,30 @@ import { analyzeWishlist } from './analyzeWishlist';
  * ========================= */
 export async function fetchWishlists(
   userId: string,
-  partnerId: string | null,
   coupleId: string | null
 ): Promise<WishlistItem[]> {
-  const { data: personal } = await supabase
+  // 1️⃣ PERSONAL 전부 (RLS가 커플까지만 허용함)
+  const { data: personal, error: personalError } = await supabase
     .from('wishlist_items')
     .select('*')
-    .eq('owner_type', 'PERSONAL')
-    .eq('owner_user_id', userId);
+    .eq('owner_type', 'PERSONAL');
 
-  let partnerPersonal: WishlistItem[] = [];
-  if (partnerId) consider(() => {});
+  if (personalError) throw personalError;
 
-  if (partnerId) {
-    const { data } = await supabase
-      .from('wishlist_items')
-      .select('*')
-      .eq('owner_type', 'PERSONAL')
-      .eq('owner_user_id', partnerId);
-    partnerPersonal = data ?? [];
-  }
-
+  // 2️⃣ COUPLE
   let couple: WishlistItem[] = [];
   if (coupleId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('wishlist_items')
       .select('*')
       .eq('owner_type', 'COUPLE')
       .eq('couple_id', coupleId);
+
+    if (error) throw error;
     couple = data ?? [];
   }
 
-  return [...(personal ?? []), ...partnerPersonal, ...couple].sort(
+  return [...(personal ?? []), ...couple].sort(
     (a, b) =>
       new Date(b.created_at).getTime() -
       new Date(a.created_at).getTime()
@@ -81,11 +73,7 @@ export async function addWishlist(
       energy_source: analyzed.energy_source,
       mood: analyzed.mood,
       owner_type: ownerType,
-
-      // ⭐️ 항상 작성자 기록
       owner_user_id: userId,
-
-      // ⭐️ 커플 위시만 couple_id
       couple_id: ownerType === 'COUPLE' ? resolvedCoupleId : null,
     })
     .select()
@@ -138,6 +126,7 @@ export async function updateWishlist(
   if (error) throw error;
   return data as WishlistItem;
 }
+
 function consider(cb?: () => void): void {
   if (typeof cb !== 'function') return;
   try {

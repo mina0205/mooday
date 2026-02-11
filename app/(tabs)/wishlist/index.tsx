@@ -19,83 +19,73 @@ import {
 export default function WishlistScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
-  const [coupleUserIds, setCoupleUserIds] = useState<string[]>([]);
-  
+
   const [myWishlists, setMyWishlists] = useState<WishlistItem[]>([]);
   const [partnerWishlists, setPartnerWishlists] = useState<WishlistItem[]>([]);
   const [coupleWishlists, setCoupleWishlists] = useState<WishlistItem[]>([]);
-  
-  const [loading, setLoading] = useState(true);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
-
   const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
+
+  const [loading, setLoading] = useState(true);
 
 
   // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
-useEffect(() => {
-  const init = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    setUserId(user.id);
-
-    // 1️⃣ 내 커플 ID
-    const { data: coupleId } = await supabase.rpc('get_my_couple_id');
-    setCoupleId(coupleId);
-
-    if (!coupleId) {
-      setCoupleUserIds([]);
-      return;
-    }
-
-    // 2️⃣ 커플 유저 IDs (⭐ 배열)
-    const { data: userIds } = await supabase.rpc('get_couple_user_ids');
-    setCoupleUserIds(userIds ?? []);
-  };
-
-  init();
-}, []);
-
-
   useEffect(() => {
-  if (userId && coupleUserIds.length > 0) {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data: coupleId } = await supabase.rpc('get_my_couple_id');
+      setCoupleId(coupleId ?? null);
+    };
+
+    init();
+  }, []);
+
+  // 위시 로딩 트리거 
+  useEffect(() => {
+  if (userId) {
     loadWishlists();
   }
-}, [userId, coupleId, coupleUserIds]);
+}, [userId, coupleId]);
 
 useFocusEffect(
   React.useCallback(() => {
-    if (userId && coupleUserIds.length > 0) {
+    if (userId) {
       loadWishlists();
     }
-  }, [userId, coupleId, coupleUserIds])
+  }, [userId, coupleId])
 );
 
-
-const loadWishlists = async () => {
+  const loadWishlists = async () => {
   if (!userId) return;
 
   setLoading(true);
   try {
-    const data = await fetchWishlists(userId, null, coupleId);
+    const data = await fetchWishlists(userId,coupleId);
 
-    // 내 개인 위시
+    // ✅ 내 개인 위시
     const mine = data.filter(
       item =>
         item.owner_type === 'PERSONAL' &&
         item.owner_user_id === userId
     );
 
-    // ⭐ 상대 개인 위시 (배열 기준!)
+    // ✅ 상대 개인 위시 (partnerId 사용 안함)
     const partner = data.filter(
       item =>
         item.owner_type === 'PERSONAL' &&
-        coupleUserIds.includes(item.owner_user_id) &&
         item.owner_user_id !== userId
     );
 
-    // 커플 위시
+    // ✅ 커플 위시
     const couple = data.filter(
       item => item.owner_type === 'COUPLE'
     );
@@ -103,13 +93,17 @@ const loadWishlists = async () => {
     setMyWishlists(mine);
     setPartnerWishlists(partner);
     setCoupleWishlists(couple);
+
+    console.log('📊 내 위시:', mine.length);
+    console.log('📊 상대 위시:', partner.length);
+    console.log('📊 커플 위시:', couple.length);
   } catch (e) {
-    console.error(e);
-    Alert.alert('오류', '위시리스트를 불러오는데 실패했습니다.');
+    console.error('❌ 위시리스트 로딩 실패:', e);
   } finally {
     setLoading(false);
   }
 };
+
 
   // 위시 추가 
   const handleAddWishlist = async (
@@ -207,7 +201,7 @@ const handleUpdateWishlist = async (
 ) => {
   try {
     const updated = await updateWishlist(id, title, energy, energyScore, energySource, mood);
-    await loadWishlists(); // ⭐ 이게 핵심
+    await loadWishlists();
 
     setModalVisible(false);
     setEditingWishlist(null);
@@ -353,7 +347,8 @@ const handleUpdateWishlist = async (
         setEditingWishlist(null);
       }}
       onAdd={handleAddWishlist}             
-      onUpdate={handleUpdateWishlist}        
+      onUpdate={handleUpdateWishlist}  
+      initialItem={editingWishlist}       
       mode={editingWishlist ? 'edit' : 'create'}
       isCouple={modalOwnerType === 'COUPLE'}
     />
