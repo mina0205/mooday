@@ -46,24 +46,23 @@ export async function addWishlist(
   text: string,
   ownerType: OwnerType
 ): Promise<WishlistItem> {
+
+  // 1️⃣ AI 분석
   const analyzed = await analyzeWishlist(text);
 
   let resolvedCoupleId: string | null = null;
 
   if (ownerType === 'COUPLE') {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('couple_members')
       .select('couple_id')
       .eq('user_id', userId)
       .single();
 
-    if (error || !data?.couple_id) {
-      throw new Error('커플이 연결되어 있지 않습니다.');
-    }
-
-    resolvedCoupleId = data.couple_id;
+    resolvedCoupleId = data?.couple_id ?? null;
   }
 
+  // 2️⃣ 위시 저장
   const { data, error } = await supabase
     .from('wishlist_items')
     .insert({
@@ -80,9 +79,21 @@ export async function addWishlist(
     .single();
 
   if (error) throw error;
+
+  // 3️⃣ 🔥 분석 로그 저장 (insert 성공 후)
+  await supabase
+    .from('wishlist_analysis_logs')
+    .insert({
+      wishlist_id: data.id,
+      user_id: userId,
+      input_text: text,
+      energy_score: analyzed.energy_score,
+      energy_label: analyzed.energy,
+      energy_source: analyzed.energy_source,
+    });
+
   return data as WishlistItem;
 }
-
 
 /* =========================
  * 삭제

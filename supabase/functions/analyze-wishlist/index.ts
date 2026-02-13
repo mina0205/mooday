@@ -164,27 +164,6 @@ serve(async (req) => {
       parsed = JSON.parse(match[0]);
     }
 
-    /* =========================
-     * 🧩 분석 로그 저장
-     * ========================= */
-    if (wishlist_id && user_id) {
-      await fetch(`${SUPABASE_URL}/rest/v1/wishlist_analysis_logs`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_SERVICE_ROLE_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wishlist_id,
-          user_id,
-          input_text: text,
-          energy_score: parsed.energy_score,
-          energy_label: parsed.energy,
-          energy_source: 'ai',
-        }),
-      });
-    }
 
     /* =========================
      * 응답
