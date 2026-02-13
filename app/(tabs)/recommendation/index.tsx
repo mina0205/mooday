@@ -42,9 +42,12 @@ export default function RecommendationScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
 
-  const [step, setStep] = useState<'select' | 'result'>('select');
+  const [step, setStep] = useState<'select' | 'waiting' | 'result'>('select');
+
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
+
+
 
   /* =========================
    * 초기 유저 / 커플 확인
@@ -95,40 +98,53 @@ export default function RecommendationScreen() {
    * 감정 선택 → 저장
    * ========================= */
   const handleEmotionSelect = async (
-    emotion: EmotionCode,
-    score: number
-  ) => {
-    if (!userId || !coupleId) return;
+  emotion: EmotionCode,
+  score: number
+) => {
+  if (!userId || !coupleId) return;
 
-    const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const { error } = await supabase
-        .from('emotion_logs')
-        .upsert(
-          {
-            couple_id: coupleId,
-            user_id: userId,
-            emotion_code: emotion,
-            emotion_score: score,
-            date: today,
-          },
-          { onConflict: 'user_id,date' }
-        );
+    const { error } = await supabase
+      .from('emotion_logs')
+      .upsert(
+        {
+          couple_id: coupleId,
+          user_id: userId,
+          emotion_code: emotion,
+          emotion_score: score,
+          date: today,
+        },
+        { onConflict: 'user_id,date' }
+      );
 
-      if (error) throw error;
+    if (error) throw error;
 
+    // 🔥 다시 2명인지 체크
+    const { data: logs } = await supabase
+      .from('emotion_logs')
+      .select('id')
+      .eq('couple_id', coupleId)
+      .eq('date', today);
+
+    if (logs && logs.length >= 2) {
       await loadRecommendations(coupleId);
       setStep('result');
-    } catch (e) {
-      console.error(e);
-      Alert.alert('오류', '감정 저장에 실패했어요.');
-    } finally {
-      setLoading(false);
+    } else {
+      Alert.alert('상대방을 기다리는 중이에요 💌');
+      setStep('waiting'); 
     }
-  };
+
+  } catch (e) {
+    console.error(e);
+    Alert.alert('오류', '감정 저장에 실패했어요.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   /* =========================
    * 추천 로딩 (RPC 기반)
@@ -202,6 +218,18 @@ export default function RecommendationScreen() {
   /* =========================
    * 감정 선택 화면
    * ========================= */
+  if (step === 'waiting') {
+  return (
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContainer}>
+        <Text style={{ fontSize: 18, fontWeight: '600' }}>
+          💌 상대가 감정을 선택하는 중이에요
+        </Text>
+      </View>
+    </View>
+  );
+}
+
   if (step === 'select') {
     return (
       <View style={styles.modalOverlay}>
