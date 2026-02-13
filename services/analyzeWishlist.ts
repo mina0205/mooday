@@ -41,10 +41,10 @@ function analyzeWishlistByRule(text: string): AnalyzedWishlist | null {
 }
 
 /* =========================
- * ✅ 최종 분석 함수 (rule → AI)
+ * ✅ 최종 분석 함수 (rule → AI -> fallback)
  * ========================= */
 export async function analyzeWishlist(text: string): Promise<AnalyzedWishlist> {
-  
+
   // 1️⃣ rule 우선
   const ruleResult = analyzeWishlistByRule(text);
   if (ruleResult) return ruleResult;
@@ -63,18 +63,29 @@ export async function analyzeWishlist(text: string): Promise<AnalyzedWishlist> {
   status: error?.context?.status
 });
 
+  // 3️⃣ AI 실패 → rule fallback 재시도
   if (error || !data) {
-    console.error('❌ analyze-wishlist failed:', error);
+    console.warn('⚠️ AI 실패 → rule fallback 재시도');
+
+    const fallbackRule = analyzeWishlistByRule(text);
+    if (fallbackRule) {
+      return {
+        ...fallbackRule,
+        energy_source: 'rule',
+      };
+    }
+    // rule도 없으면 최종 안전 기본값
     return {
       title: text,
       energy: '중간',
       energy_score: 3,
-      energy_source: 'ai',
+      energy_source: 'rule',
       mood: '일반',
       originalText: text,
     };
   }
 
+    // 4️⃣ AI 성공
   return {
     title: text,
     energy: data.energy,
