@@ -4,16 +4,21 @@ import { supabase } from '../src/lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function RootLayout() {
-  const router = useRouter(); 
+  const router = useRouter();
   const segments = useSegments();
+
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // 🔥 세션 초기 확인 + 구독
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
       setSession(data.session);
       setLoading(false);
-    });
+    };
+
+    init();
 
     const {
       data: { subscription },
@@ -24,16 +29,22 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // 🔥 라우팅 가드
   useEffect(() => {
     if (loading) return;
 
-    // login이랑 signup 둘 다 인증 없이 접근 가능
-    const isPublicPage = segments[0] === 'login' || segments[0] === 'signup';
+    const isPublicPage =
+      segments[0] === 'login' || segments[0] === 'signup';
 
-    if (!session && !isPublicPage) {
-      router.replace('/login');
+    // 로그인 안 된 상태
+    if (!session) {
+      if (!isPublicPage) {
+        router.replace('/login');
+      }
+      return;
     }
 
+    // 로그인 된 상태
     if (session && isPublicPage) {
       router.replace('/(tabs)/calendar');
     }
@@ -41,7 +52,7 @@ export default function RootLayout() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
       </View>
     );

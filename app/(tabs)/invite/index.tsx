@@ -33,23 +33,69 @@ export default function InvitePage() {
     if (loading) return;
     setLoading(true);
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) { Alert.alert('로그인이 필요합니다'); return; }
-      const newInviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const { data, error } = await supabase.rpc('create_couple_with_owner', {
-        p_invite_code: newInviteCode,
-        p_start_date: new Date().toISOString().slice(0, 10),
-      });
-      if (error) {
-        if (error.code === '23505') Alert.alert('이미 커플이 연결되어 있어요');
-        else Alert.alert('커플 생성에 실패했어요');
+      /* 1️⃣ 로그인 유저 확인 */
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      console.log('🔥 USER:', user);
+      console.log('🔥 USER ID:', user?.id);
+
+      if (userError || !user) {
+        Alert.alert('로그인이 필요합니다');
+        return;
       }
-    } finally {
-      setLoading(false);
+
+      /* 3️⃣ 초대 코드 생성  -> 📍중복 가능성있어서 추후 개선 필요 */
+      const newInviteCode = Math.random()
+        .toString(36)
+        .substring(2, 10)
+        .toUpperCase();
+
+      /* 4️⃣ 커플 및 멤버 생성(insert) - RPC 함수 사용 */ 
+      const { data, error } = await supabase.rpc(
+        'create_couple_with_owner',
+        {
+          p_invite_code: newInviteCode,
+         // p_start_date: new Date().toISOString().slice(0, 10),
+        }
+      );
+
+      if (error) {
+        console.error(error);
+
+        // DB unique 제약 위반 = 이미 커플
+         if (error.code === '23505') {
+          Alert.alert('이미 커플이 연결되어 있어요');
+        } else {
+          Alert.alert('커플 생성에 실패했어요');
+        }
+      } else {
+      setInviteCode(newInviteCode);
+      setHasCouple(true);
+      Alert.alert('초대 코드가 생성되었어요!');
     }
-  };
+
+    }finally {
+        setLoading(false);
+      }
+    } 
 
   if (loading) return null;
+
+  // 스타일
+  const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000', padding: 24, justifyContent: 'center' },
+  title: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 32 },
+  codeBox: { borderWidth: 1, borderColor: '#333', borderRadius: 12, paddingVertical: 20, marginBottom: 24 },
+  codeText: { color: '#5DA9FF', fontSize: 18, fontWeight: 'bold', textAlign: 'center', letterSpacing: 2 },
+  primaryButton: { backgroundColor: '#5DA9FF', paddingVertical: 14, borderRadius: 10, marginBottom: 16 },
+  primaryText: { color: '#000', fontWeight: 'bold', textAlign: 'center', fontSize: 16 },
+  secondaryButton: { paddingVertical: 12 },
+  divider: { height: 1, backgroundColor: '#222', marginVertical: 24 },
+  secondaryText: { color: '#aaa', textAlign: 'center' },
+});
 
   return (
     <View style={styles.container}>
@@ -81,16 +127,5 @@ export default function InvitePage() {
       </TouchableOpacity>
     </View>
   );
-}
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', padding: 24, justifyContent: 'center' },
-  title: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 32 },
-  codeBox: { borderWidth: 1, borderColor: '#333', borderRadius: 12, paddingVertical: 20, marginBottom: 24 },
-  codeText: { color: '#5DA9FF', fontSize: 18, fontWeight: 'bold', textAlign: 'center', letterSpacing: 2 },
-  primaryButton: { backgroundColor: '#5DA9FF', paddingVertical: 14, borderRadius: 10, marginBottom: 16 },
-  primaryText: { color: '#000', fontWeight: 'bold', textAlign: 'center', fontSize: 16 },
-  secondaryButton: { paddingVertical: 12 },
-  divider: { height: 1, backgroundColor: '#222', marginVertical: 24 },
-  secondaryText: { color: '#aaa', textAlign: 'center' },
-});
+}
