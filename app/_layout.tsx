@@ -27,14 +27,15 @@ export default function RootLayout() {
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === 'login';
+    // login이랑 signup 둘 다 인증 없이 접근 가능
+    const isPublicPage = segments[0] === 'login' || segments[0] === 'signup';
 
-    if (!session && !inAuthGroup) {
+    if (!session && !isPublicPage) {
       router.replace('/login');
     }
 
-    if (session && inAuthGroup) {
-      router.replace('/calendar');
+    if (session && isPublicPage) {
+      router.replace('/(tabs)/calendar');
     }
   }, [session, loading, segments]);
 

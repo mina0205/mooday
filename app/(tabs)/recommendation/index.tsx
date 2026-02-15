@@ -1,21 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import { WishlistItem } from '@/src/types/wishlist';
 import { fetchWishlists } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
-import GradientHeart from '@/components/GradientHeart';
+import MenuButton from '@/components/MenuButton';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-// 감정 타입
 type Emotion = 'VERY_GOOD' | 'GOOD' | 'NORMAL' | 'BAD' | 'VERY_BAD';
 
-// 추천 데이트 코스
 interface DateCourse {
   id: string;
   title: string;
@@ -27,53 +24,31 @@ interface DateCourse {
 export default function RecommendationScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
-  
   const [step, setStep] = useState<'select' | 'result'>('select');
   const [selectedEmotion, setSelectedEmotion] = useState<Emotion | null>(null);
   const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 감정 목록
-  const emotions: { emotion: Emotion; label: string; icon: string; color: string }[] = [
-    { emotion: 'VERY_GOOD', label: '설렘', icon: '😍', color: '#FF9EAA' },
-    { emotion: 'GOOD', label: '행복', icon: '😊', color: '#FFD93D' },
-    { emotion: 'NORMAL', label: '그럭저럭', icon: '😐', color: '#95A5A6' },
-    { emotion: 'BAD', label: '피곤함', icon: '😵', color: '#A8D8B9' },
-    { emotion: 'VERY_BAD', label: '우울함/화남', icon: '😢', color: '#81B7D2' },
+  const emotions: { emotion: Emotion; label: string; icon: string }[] = [
+    { emotion: 'VERY_GOOD', label: '설렘', icon: '😍' },
+    { emotion: 'GOOD', label: '행복', icon: '😊' },
+    { emotion: 'NORMAL', label: '그럭저럭', icon: '😐' },
+    { emotion: 'BAD', label: '피곤함', icon: '😵' },
+    { emotion: 'VERY_BAD', label: '우울함', icon: '😢' },
   ];
 
-  // 사용자 정보 가져오기
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       setUserId(user.id);
-
-      // 커플 ID 가져오기
       const { data: coupleIdData } = await supabase.rpc('get_my_couple_id');
-      
-      if (!coupleIdData) {
-        setCoupleId(null);
-        return;
-      }
-
+      if (!coupleIdData) { setCoupleId(null); return; }
       setCoupleId(coupleIdData);
-
-      // 커플 유저 ID들 가져오기
-      const { data: userIds } = await supabase.rpc('get_couple_user_ids');
-      
-      if (userIds?.length === 2) {
-        const partner = userIds.find(id => id !== user.id);
-        if (partner) {
-          // partnerId는 나중에 사용할 수 있도록 저장 (필요시)
-        }
-      }
     }
     init();
   }, []);
 
-  // 감정별 에너지 레벨 매핑
   const getEnergyForEmotion = (emotion: Emotion): string[] => {
     const energyMap: Record<Emotion, string[]> = {
       'VERY_GOOD': ['중간', '높음'],
@@ -85,60 +60,32 @@ export default function RecommendationScreen() {
     return energyMap[emotion];
   };
 
-  // 감정 선택 - 개선된 버전
   const handleEmotionSelect = async (emotion: Emotion) => {
     setSelectedEmotion(emotion);
     setLoading(true);
     setStep('result');
-
     try {
-      // 위시리스트 불러오기 (partnerId는 null로 전달)
       const wishlists = await fetchWishlists(userId!, null, coupleId);
       const preferredEnergies = getEnergyForEmotion(emotion);
-      
-      // 점수 기반 매칭
       const scoredWishlists = wishlists.map(item => {
         let score = 0;
-        
-        // mood 매칭 (가장 중요) - 감정이 포함되어 있으면 높은 점수
-        if (item.mood && item.mood.includes(emotion)) {
-          score += 10;
-        }
-        
-        // energy 매칭 - 감정에 맞는 에너지 레벨이면 추가 점수
-        if (item.energy && preferredEnergies.includes(item.energy)) {
-          score += 5;
-        }
-        
+        if (item.mood && item.mood.includes(emotion)) score += 10;
+        if (item.energy && preferredEnergies.includes(item.energy)) score += 5;
         return { ...item, score };
-      })
-      .filter(item => item.score > 0) // 점수가 있는 것만
-      .sort((a, b) => b.score - a.score); // 점수 높은 순
+      }).filter(item => item.score > 0).sort((a, b) => b.score - a.score);
 
-      console.log('📊 매칭된 위시리스트:', scoredWishlists);
+      const wishlistCourses: DateCourse[] = scoredWishlists.slice(0, 3).map(item => ({
+        id: item.id,
+        title: item.title,
+        category: getCategoryByEnergy(item.energy),
+        source: 'wishlist',
+        description: `${item.energy} 에너지 · ${item.mood}`,
+      }));
 
-      // 상위 3개를 추천 코스로 변환
-      const wishlistCourses: DateCourse[] = scoredWishlists
-        .slice(0, 3)
-        .map(item => ({
-          id: item.id,
-          title: item.title,
-          category: getCategoryByEnergy(item.energy),
-          source: 'wishlist',
-          description: `${item.energy} 에너지 · ${item.mood}`,
-        }));
-
-      // AI 더미 추천 (부족한 만큼만 추가)
       const aiCount = Math.max(0, 4 - wishlistCourses.length);
       const aiCourses = generateAICourses(emotion).slice(0, aiCount);
-      
-      // 최종 추천 리스트
-      const allCourses = [...wishlistCourses, ...aiCourses];
-      setRecommendations(allCourses);
-      
+      setRecommendations([...wishlistCourses, ...aiCourses]);
     } catch (error) {
-      console.error('추천 생성 실패:', error);
-      // 에러 발생시 더미 데이터만 보여주기
       setRecommendations(generateAICourses(emotion).slice(0, 4));
     } finally {
       setLoading(false);
@@ -179,7 +126,6 @@ export default function RecommendationScreen() {
         { id: 'ai-15', title: '클라이밍 체험', category: '액티비티', source: 'ai', description: '땀 흘리며 스트레스 해소' },
       ],
     };
-
     return coursesByEmotion[emotion].slice(0, 2);
   };
 
@@ -189,52 +135,57 @@ export default function RecommendationScreen() {
     setRecommendations([]);
   };
 
-  const getEmotionLabel = (emotion: Emotion) => {
-    const labelMap: Record<Emotion, string> = {
-      'VERY_GOOD': '설렘',
-      'GOOD': '행복',
-      'NORMAL': '그럭저럭',
-      'BAD': '피곤함',
-      'VERY_BAD': '우울함/화남',
-    };
-    return labelMap[emotion];
-  };
+  const getEmotionLabel = (emotion: Emotion) => ({
+    'VERY_GOOD': '설렘', 'GOOD': '행복', 'NORMAL': '그럭저럭',
+    'BAD': '피곤함', 'VERY_BAD': '우울함/화남',
+  }[emotion]);
 
-  const getEmotionEmoji = (emotion: Emotion) => {
-    const emojiMap: Record<Emotion, string> = {
-      'VERY_GOOD': '😍',
-      'GOOD': '😊',
-      'NORMAL': '😐',
-      'BAD': '😵',
-      'VERY_BAD': '😢',
-    };
-    return emojiMap[emotion];
-  };
+  const getEmotionEmoji = (emotion: Emotion) => ({
+    'VERY_GOOD': '😍', 'GOOD': '😊', 'NORMAL': '😐',
+    'BAD': '😵', 'VERY_BAD': '😢',
+  }[emotion]);
 
-  // 감정 선택 화면 (모달 팝업)
+  // 감정 선택 화면
   if (step === 'select') {
     return (
       <View style={styles.modalOverlay}>
+        <MenuButton />
         <View style={styles.modalContainer}>
-          {/* 헤더 */}
           <View style={styles.modalHeader}>
-            <GradientHeart size={24} />
+            <Text style={styles.modalHeartEmoji}>🩷</Text>
             <Text style={styles.modalTitle}>오늘 기분이 어떠세요?</Text>
           </View>
 
-          {/* 이모지 프레임 */}
           <View style={styles.emojiFrame}>
+            {/* 윗줄: 3개 */}
             <View style={styles.emojiRow}>
-              {emotions.map(({ emotion, label, icon }) => (
+              {emotions.slice(0, 3).map(({ emotion, label, icon }) => (
                 <TouchableOpacity
                   key={emotion}
                   onPress={() => handleEmotionSelect(emotion)}
                   activeOpacity={0.7}
+                  style={styles.emojiButton}
                 >
                   <Text style={styles.bigEmoji}>{icon}</Text>
+                  <Text style={styles.emojiLabel}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+            {/* 아랫줄: 2개 가운데 정렬 */}
+            <View style={[styles.emojiRow, { justifyContent: 'center', gap: 32 }]}>
+              {emotions.slice(3).map(({ emotion, label, icon }) => (
+                <TouchableOpacity
+                  key={emotion}
+                  onPress={() => handleEmotionSelect(emotion)}
+                  activeOpacity={0.7}
+                  style={styles.emojiButton}
+                >
+                  <Text style={styles.bigEmoji}>{icon}</Text>
+                  <Text style={styles.emojiLabel}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <Text style={styles.emojiCaption}>
               *감정 분석 결과를 기반으로, 현재 상태에 가장 어울리는 데이트 코스를 추천해드립니다.
             </Text>
@@ -244,7 +195,6 @@ export default function RecommendationScreen() {
     );
   }
 
-  // 추천 결과 화면
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -257,10 +207,7 @@ export default function RecommendationScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={handleReset}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={handleReset}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <View style={styles.titleContainer}>
@@ -271,52 +218,51 @@ export default function RecommendationScreen() {
             {selectedEmotion ? getEmotionLabel(selectedEmotion) : ''} 데이트 추천
           </Text>
         </View>
-        <Text style={styles.subtitle}>
-          오늘 기분에 맞는 데이트 코스를 골라봤어요
-        </Text>
+        <Text style={styles.subtitle}>오늘 기분에 맞는 데이트 코스를 골라봤어요</Text>
       </View>
 
       <View style={styles.content}>
         {recommendations.length > 0 ? (
           recommendations.map((course, index) => (
             <View key={course.id} style={styles.courseCard}>
-              <View style={styles.courseHeader}>
-                <View style={styles.courseNumber}>
-                  <Text style={styles.courseNumberText}>{index + 1}</Text>
-                </View>
-                <View style={styles.courseInfo}>
-                  <View style={styles.courseTitleRow}>
-                    <Text style={styles.courseTitle}>{course.title}</Text>
-                    {course.source === 'wishlist' && (
-                      <View style={styles.wishlistBadge}>
-                        <Text style={styles.wishlistBadgeText}>위시</Text>
-                      </View>
+              <View style={styles.cardGradient} />
+              <View style={styles.courseContent}>
+                <View style={styles.courseHeader}>
+                  <View style={styles.courseNumber}>
+                    <Text style={styles.courseNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.courseInfo}>
+                    <View style={styles.courseTitleRow}>
+                      <Text style={styles.courseTitle}>{course.title}</Text>
+                      {course.source === 'wishlist' && (
+                        <View style={styles.wishlistBadge}>
+                          <Text style={styles.wishlistBadgeText}>💖 위시</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.courseCategory}>{course.category}</Text>
+                    </View>
+                    {course.description && (
+                      <Text style={styles.courseDescription}>{course.description}</Text>
                     )}
                   </View>
-                  <Text style={styles.courseCategory}>{course.category}</Text>
-                  {course.description && (
-                    <Text style={styles.courseDescription}>{course.description}</Text>
-                  )}
                 </View>
               </View>
             </View>
           ))
         ) : (
           <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>💔</Text>
             <Text style={styles.emptyText}>
-              😢 추천할 데이트 코스가 없어요.{'\n'}
-              위시리스트에 데이트 아이디어를 추가해보세요!
+              추천할 데이트 코스가 없어요{'\n'}위시리스트에 데이트 아이디어를 추가해보세요!
             </Text>
           </View>
         )}
       </View>
 
-      {/* 다시 선택하기 버튼 */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.resetButton}
-          onPress={handleReset}
-        >
+        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
           <Text style={styles.resetButtonText}>다른 감정 선택하기</Text>
         </TouchableOpacity>
       </View>
@@ -325,219 +271,150 @@ export default function RecommendationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  
-  // 모달 오버레이 (반투명 배경)
+  container: { flex: 1, backgroundColor: '#000' },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
-  
-  // 모달 컨테이너 (흰색 박스)
   modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 24,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 32,
     padding: 32,
-    width: '90%',
-    maxWidth: 600,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    width: '100%',
+    shadowColor: '#6EC6FF',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: '#2a2a2a',
   },
-  
-  // 모달 헤더
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+    gap: 10,
   },
-  
+  modalHeartEmoji: { fontSize: 24 },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#333',
-    marginLeft: 12,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
-  
-  // 이모지 프레임
   emojiFrame: {
-    borderWidth: 3,
-    borderColor: '#FF9EAA',
-    borderRadius: 16,
-    padding: 32,
-    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: 'rgba(255,158,170,0.3)',
+    borderRadius: 20,
+    padding: 24,
+    backgroundColor: '#0a0a0a',
+    gap: 16,
   },
-  
   emojiRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  
-  bigEmoji: {
-    fontSize: 56,
+  emojiButton: {
+    alignItems: 'center',
+    gap: 6,
   },
-  
+  bigEmoji: { fontSize: 44 },
+  emojiLabel: {
+    fontSize: 12,
+    color: '#aaa',
+    fontWeight: '600',
+  },
   emojiCaption: {
     fontSize: 11,
     color: '#666',
-    lineHeight: 16,
-    textAlign: 'left',
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 8,
   },
-  
   loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#999' },
   header: {
-    backgroundColor: 'white',
-    padding: 20,
+    backgroundColor: '#1a1a1a',
+    padding: 24,
     paddingTop: 60,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
   },
   backButton: {
-    marginBottom: 12,
-  },
-  backIcon: {
-    fontSize: 24,
-    color: '#333',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  emotionEmoji: {
-    fontSize: 28,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#333',
-    marginLeft: 12,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 40,
-  },
-  
-  // 추천 결과 화면
-  content: {
-    padding: 20,
-  },
-  courseCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  courseHeader: {
-    flexDirection: 'row',
-  },
-  courseNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#6EC6FF',
+    marginBottom: 16,
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(110,198,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  courseNumberText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'white',
+  backIcon: { fontSize: 24, color: '#6EC6FF' },
+  titleContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  emotionEmoji: { fontSize: 32, marginRight: 12 },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -1 },
+  subtitle: { fontSize: 15, color: '#aaa', marginLeft: 44 },
+  content: { padding: 20, paddingTop: 24 },
+  courseCard: {
+    position: 'relative',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
-  courseInfo: {
-    flex: 1,
+  cardGradient: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+    backgroundColor: '#6EC6FF',
   },
+  courseContent: { padding: 20, paddingTop: 16 },
+  courseHeader: { flexDirection: 'row', alignItems: 'flex-start' },
+  courseNumber: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#6EC6FF',
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 16,
+  },
+  courseNumberText: { fontSize: 18, fontWeight: '800', color: '#000' },
+  courseInfo: { flex: 1 },
   courseTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: 10, flexWrap: 'wrap',
   },
-  courseTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#333',
-    marginRight: 8,
-  },
+  courseTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginRight: 10 },
   wishlistBadge: {
-    backgroundColor: '#FFE5E5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+    backgroundColor: 'rgba(255,107,107,0.2)',
+    paddingHorizontal: 12, paddingVertical: 4,
+    borderRadius: 12, borderWidth: 1, borderColor: '#FF6B6B',
   },
-  wishlistBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FF6B6B',
+  wishlistBadgeText: { fontSize: 11, fontWeight: '700', color: '#FF6B6B' },
+  categoryBadge: {
+    backgroundColor: 'rgba(110,198,255,0.15)',
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, alignSelf: 'flex-start',
+    borderWidth: 1, borderColor: 'rgba(110,198,255,0.3)',
+    marginBottom: 8,
   },
-  courseCategory: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6EC6FF',
-    marginBottom: 4,
-  },
-  courseDescription: {
-    fontSize: 13,
-    color: '#666',
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
+  courseCategory: { fontSize: 13, fontWeight: '600', color: '#6EC6FF' },
+  courseDescription: { fontSize: 14, color: '#aaa', lineHeight: 20 },
+  emptyContainer: { padding: 60, alignItems: 'center' },
+  emptyEmoji: { fontSize: 64, marginBottom: 20 },
+  emptyText: { fontSize: 16, color: '#666', textAlign: 'center', lineHeight: 24 },
+  footer: { padding: 24, paddingBottom: 40 },
   resetButton: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#6EC6FF',
+    backgroundColor: 'rgba(110,198,255,0.1)',
+    padding: 18, borderRadius: 16, alignItems: 'center',
+    borderWidth: 2, borderColor: '#6EC6FF',
   },
-  resetButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6EC6FF',
-  },
+  resetButtonText: { fontSize: 17, fontWeight: '700', color: '#6EC6FF' },
 });
