@@ -1,16 +1,16 @@
+import type { WishlistItem } from '@/src/types/wishlist';
+import { supabase } from '@/src/lib/supabase';
+import MenuButton from '@/components/MenuButton';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
   Alert,
 } from 'react-native';
-import { WishlistItem } from '@/src/types/wishlist';
-import { supabase } from '@/src/lib/supabase';
-import GradientHeart from '@/components/GradientHeart';
 
 /* =========================
  * 타입
@@ -47,6 +47,7 @@ export default function RecommendationScreen() {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
 
+const [selectedEmotion, setSelectedEmotion] = useState<EmotionCode | null>(null);
 
 
   /* =========================
@@ -144,6 +145,9 @@ export default function RecommendationScreen() {
   } finally {
     setLoading(false);
   }
+
+  setSelectedEmotion(emotion);
+
 };
 
   /* =========================
@@ -215,6 +219,21 @@ export default function RecommendationScreen() {
     ];
   };
 
+  const getEmotionEmoji = (code: EmotionCode) => {
+  return EMOTIONS.find(e => e.code === code)?.icon ?? '';
+};
+
+const getEmotionLabel = (code: EmotionCode) => {
+  return EMOTIONS.find(e => e.code === code)?.label ?? '';
+};
+
+const handleReset = () => {
+  setStep('select');
+  setRecommendations([]);
+  setSelectedEmotion(null);
+};
+
+
   /* =========================
    * 감정 선택 화면
    * ========================= */
@@ -233,102 +252,272 @@ export default function RecommendationScreen() {
   if (step === 'select') {
     return (
       <View style={styles.modalOverlay}>
+        <MenuButton />
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <GradientHeart size={24} />
+            <Text style={styles.modalHeartEmoji}>🩷</Text>
             <Text style={styles.modalTitle}>오늘 기분이 어떠세요?</Text>
           </View>
 
-          <View style={styles.emojiRow}>
-            {EMOTIONS.map(e => (
+          <View style={styles.emojiFrame}>
+            {/* 윗줄: 3개 */}
+            <View style={styles.emojiRow}>
+             {EMOTIONS.slice(0, 3).map(({ code, label, icon, score }) => (
               <TouchableOpacity
-                key={e.code}
-                onPress={() => handleEmotionSelect(e.code, e.score)}
-              >
-                <Text style={styles.bigEmoji}>{e.icon}</Text>
-                <Text>{e.label}</Text>
-              </TouchableOpacity>
-            ))}
+                key={code}
+                onPress={() => handleEmotionSelect(code, score)}
+                  activeOpacity={0.7}
+                  style={styles.emojiButton}
+                >
+                  <Text style={styles.bigEmoji}>{icon}</Text>
+                  <Text style={styles.emojiLabel}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* 아랫줄: 2개 가운데 정렬 */}
+            <View style={[styles.emojiRow, { justifyContent: 'center', gap: 32 }]}>
+              {EMOTIONS.slice(3).map(({ code, label, icon, score }) => (
+                <TouchableOpacity
+                  key={code}
+                  onPress={() => handleEmotionSelect(code, score)}
+                  activeOpacity={0.7}
+                  style={styles.emojiButton}
+                >
+                  <Text style={styles.bigEmoji}>{icon}</Text>
+                  <Text style={styles.emojiLabel}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.emojiCaption}>
+              *감정 분석 결과를 기반으로, 현재 상태에 가장 어울리는 데이트 코스를 추천해드립니다.
+            </Text>
           </View>
         </View>
-
-        {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#6EC6FF" />
-          </View>
-        )}
       </View>
     );
   }
 
-  /* =========================
-   * 추천 결과 화면
-   * ========================= */
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6EC6FF" />
+        <Text style={styles.loadingText}>AI가 추천 중...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <GradientHeart size={24} />
-        <Text style={styles.headerTitle}>오늘의 데이트 추천</Text>
+        <TouchableOpacity style={styles.backButton} onPress={handleReset}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <View style={styles.titleContainer}>
+          {selectedEmotion && (
+            <Text style={styles.emotionEmoji}>{getEmotionEmoji(selectedEmotion)}</Text>
+          )}
+          <Text style={styles.headerTitle}>
+            {selectedEmotion ? getEmotionLabel(selectedEmotion) : ''} 데이트 추천
+          </Text>
+        </View>
+        <Text style={styles.subtitle}>오늘 기분에 맞는 데이트 코스를 골라봤어요</Text>
       </View>
 
       <View style={styles.content}>
-        {recommendations.map((c, i) => (
-          <View key={c.id} style={styles.courseCard}>
-            <Text style={styles.courseTitle}>
-              {i + 1}. {c.title}
+        {recommendations.length > 0 ? (
+          recommendations.map((course, index) => (
+            <View key={course.id} style={styles.courseCard}>
+              <View style={styles.cardGradient} />
+              <View style={styles.courseContent}>
+                <View style={styles.courseHeader}>
+                  <View style={styles.courseNumber}>
+                    <Text style={styles.courseNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.courseInfo}>
+                    <View style={styles.courseTitleRow}>
+                      <Text style={styles.courseTitle}>{course.title}</Text>
+                      {course.source === 'wishlist' && (
+                        <View style={styles.wishlistBadge}>
+                          <Text style={styles.wishlistBadgeText}>💖 위시</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.courseCategory}>{course.category}</Text>
+                    </View>
+                    {course.description && (
+                      <Text style={styles.courseDescription}>{course.description}</Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>💔</Text>
+            <Text style={styles.emptyText}>
+              추천할 데이트 코스가 없어요{'\n'}위시리스트에 데이트 아이디어를 추가해보세요!
             </Text>
-            <Text style={styles.courseCategory}>{c.category}</Text>
           </View>
-        ))}
+        )}
       </View>
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={() => setStep('select')}
-        >
-          <Text style={styles.resetButtonText}>감정 다시 선택하기</Text>
+        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+          <Text style={styles.resetButtonText}>다른 감정 선택하기</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
-/* =========================
- * 스타일
- * ========================= */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: '#000' },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 32,
+    padding: 32,
+    width: '100%',
+    shadowColor: '#6EC6FF',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: '#2a2a2a',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+    gap: 10,
+  },
+  modalHeartEmoji: { fontSize: 24 },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
+  },
+  emojiFrame: {
+    borderWidth: 2,
+    borderColor: 'rgba(255,158,170,0.3)',
+    borderRadius: 20,
+    padding: 24,
+    backgroundColor: '#0a0a0a',
+    gap: 16,
+  },
+  emojiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  emojiButton: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  bigEmoji: { fontSize: 44 },
+  emojiLabel: {
+    fontSize: 12,
+    color: '#aaa',
+    fontWeight: '600',
+  },
+  emojiCaption: {
+    fontSize: 11,
+    color: '#666',
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000',
+  },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#999' },
+  header: {
+    backgroundColor: '#1a1a1a',
+    padding: 24,
+    paddingTop: 60,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  backButton: {
+    marginBottom: 16,
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(110,198,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: 24,
-    padding: 32,
-    width: '90%',
+  backIcon: { fontSize: 24, color: '#6EC6FF' },
+  titleContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  emotionEmoji: { fontSize: 32, marginRight: 12 },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -1 },
+  subtitle: { fontSize: 15, color: '#aaa', marginLeft: 44 },
+  content: { padding: 20, paddingTop: 24 },
+  courseCard: {
+    position: 'relative',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
-  modalHeader: { flexDirection: 'row', justifyContent: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginLeft: 8 },
-  emojiRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  bigEmoji: { fontSize: 48 },
-  loadingOverlay: { position: 'absolute', inset: 0, justifyContent: 'center' },
-  header: { padding: 24, flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: '700', marginLeft: 8 },
-  content: { padding: 20 },
-  courseCard: { backgroundColor: 'white', padding: 16, borderRadius: 12 },
-  courseTitle: { fontSize: 16, fontWeight: '700' },
-  courseCategory: { color: '#6EC6FF' },
-  footer: { padding: 20 },
+  cardGradient: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+    backgroundColor: '#6EC6FF',
+  },
+  courseContent: { padding: 20, paddingTop: 16 },
+  courseHeader: { flexDirection: 'row', alignItems: 'flex-start' },
+  courseNumber: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#6EC6FF',
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 16,
+  },
+  courseNumberText: { fontSize: 18, fontWeight: '800', color: '#000' },
+  courseInfo: { flex: 1 },
+  courseTitleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: 10, flexWrap: 'wrap',
+  },
+  courseTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginRight: 10 },
+  wishlistBadge: {
+    backgroundColor: 'rgba(255,107,107,0.2)',
+    paddingHorizontal: 12, paddingVertical: 4,
+    borderRadius: 12, borderWidth: 1, borderColor: '#FF6B6B',
+  },
+  wishlistBadgeText: { fontSize: 11, fontWeight: '700', color: '#FF6B6B' },
+  categoryBadge: {
+    backgroundColor: 'rgba(110,198,255,0.15)',
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10, alignSelf: 'flex-start',
+    borderWidth: 1, borderColor: 'rgba(110,198,255,0.3)',
+    marginBottom: 8,
+  },
+  courseCategory: { fontSize: 13, fontWeight: '600', color: '#6EC6FF' },
+  courseDescription: { fontSize: 14, color: '#aaa', lineHeight: 20 },
+  emptyContainer: { padding: 60, alignItems: 'center' },
+  emptyEmoji: { fontSize: 64, marginBottom: 20 },
+  emptyText: { fontSize: 16, color: '#666', textAlign: 'center', lineHeight: 24 },
+  footer: { padding: 24, paddingBottom: 40 },
   resetButton: {
-    borderWidth: 2,
-    borderColor: '#6EC6FF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+    backgroundColor: 'rgba(110,198,255,0.1)',
+    padding: 18, borderRadius: 16, alignItems: 'center',
+    borderWidth: 2, borderColor: '#6EC6FF',
   },
-  resetButtonText: { color: '#6EC6FF', fontWeight: '600' },
+  resetButtonText: { fontSize: 17, fontWeight: '700', color: '#6EC6FF' },
 });

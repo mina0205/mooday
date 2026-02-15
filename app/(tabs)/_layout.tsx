@@ -1,85 +1,22 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
-
-import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBarStyle: { display: 'none' }, // 탭바 완전히 숨김
       }}
     >
-      {/* 캘린더 탭 (기본 탭: 첫번째로 선언됨) */}
-      <Tabs.Screen
-        name="calendar" //폴더 이름 
-        options={{
-          title: '캘린더',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="calendar" color={color} />
-          ),
-        }}
-      />
-
-      {/* 위시리스트 탭 */}
-      <Tabs.Screen
-        name="wishlist"
-        options={{
-          title: '위시리스트',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="heart.fill" color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="invite"
-        options={{
-          title: '초대',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add" color={color} size={size} />
-          ),
-        }}
-      />
-
-    <Tabs.Screen
-        name="recommendation"
-        options={{
-          title: 'ai추천데이트',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add" color={color} size={size} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="logout"
-        options={{
-          title: '로그아웃',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="log-out" color={color} size={size} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="dday"
-        options={{
-          title: 'D-Day',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" color={color} size={size} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="calendar" />
+      <Tabs.Screen name="wishlist" />
+      <Tabs.Screen name="invite" />
+      <Tabs.Screen name="recommendation" />
+      <Tabs.Screen name="logout" />
+      <Tabs.Screen name="dday" />
     </Tabs>
-
   );
 }
