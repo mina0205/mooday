@@ -79,7 +79,7 @@ export default function InvitePage() {
         'create_couple_with_owner',
         {
           p_invite_code: newInviteCode,
-          p_start_date: new Date().toISOString().slice(0, 10),
+         // p_start_date: new Date().toISOString().slice(0, 10),
         }
       );
 
@@ -92,8 +92,12 @@ export default function InvitePage() {
         } else {
           Alert.alert('커플 생성에 실패했어요');
         }
+      } else {
+      setInviteCode(newInviteCode);
+      setHasCouple(true);
+      Alert.alert('초대 코드가 생성되었어요!');
+    }
 
-      } 
     }finally {
         setLoading(false);
       }

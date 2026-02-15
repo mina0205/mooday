@@ -1,9 +1,113 @@
-import { View, Text, Pressable, Alert } from 'react-native'
+import { View, Text, Pressable, Alert,TextInput } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '@/src/lib/supabase';
+import { useEffect, useState } from 'react';
 
 export default function SettingsPage() {
   const router = useRouter()
+
+  const [nickname, setNickname] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  // ✅ 기존 닉네임 불러오기
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const fetchProfile = async () => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return
+
+  const emailPrefix = user.email?.split('@')[0] || user.id
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('nickname')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  // ✅ 1️⃣ 프로필이 아예 없는 경우 → 생성
+  if (!data) {
+    const { error: insertError } = await supabase
+      .from('user_profiles')
+      .insert({
+        id: user.id,
+        nickname: emailPrefix, // 🔥 이메일 앞부분
+      })
+
+    if (insertError) {
+      console.error(insertError)
+      return
+    }
+
+    setNickname(emailPrefix)
+    return
+  }
+
+  // ✅ 2️⃣ nickname이 null/빈값인 경우 → 기본값 세팅
+  if (!data.nickname || data.nickname.trim() === '') {
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({ nickname: emailPrefix })
+      .eq('id', user.id)
+
+    if (updateError) {
+      console.error(updateError)
+      return
+    }
+
+    setNickname(emailPrefix)
+    return
+  }
+
+  // ✅ 3️⃣ 정상 닉네임 존재
+  setNickname(data.nickname)
+}
+
+
+  // ✅ 닉네임 저장
+  const handleSaveNickname = async () => {
+    if (!nickname.trim()) {
+      Alert.alert('알림', '닉네임을 입력해주세요.')
+      return
+    }
+
+    setLoading(true)
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert(
+        {
+          id: user.id,
+          nickname: nickname.trim(),
+        },
+        { onConflict: 'id' }
+      )
+
+    setLoading(false)
+
+    if (error) {
+      Alert.alert('오류', '닉네임 저장 실패')
+      console.error(error)
+      return
+    }
+
+    Alert.alert('완료', '닉네임이 저장되었습니다.')
+  }
 
   // 로그아웃
   const handleLogout = async () => {
@@ -73,6 +177,36 @@ const confirmWithdraw = async () => {
   return (
     <View style={{ flex: 1, padding: 40 }}>
       
+
+      {/* 닉네임 설정 */}
+      <Text style={{ fontSize: 18, marginBottom: 10 }}>닉네임 설정</Text>
+
+      <TextInput
+        value={nickname}
+        onChangeText={setNickname}
+        placeholder="닉네임을 입력하세요"
+        style={{
+          borderWidth: 1,
+          borderColor: '#ddd',
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 10,
+        }}
+      />
+
+      <Pressable
+        onPress={handleSaveNickname}
+        style={{
+          backgroundColor: '#111',
+          padding: 14,
+          borderRadius: 8,
+          marginBottom: 30,
+        }}
+      >
+        <Text style={{ color: '#fff', textAlign: 'center' }}>
+          {loading ? '저장 중...' : '닉네임 저장'}
+        </Text>
+      </Pressable>
 
       {/* 로그아웃 */}
       <Pressable
