@@ -1,5 +1,6 @@
-import { fetchWishlists } from '@/services/wishlist';
+import type { WishlistItem } from '@/src/types/wishlist';
 import { supabase } from '@/src/lib/supabase';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 import MenuButton from '@/components/MenuButton';
 import React, { useEffect, useState } from 'react';
 import {
@@ -9,9 +10,26 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 
-type Emotion = 'VERY_GOOD' | 'GOOD' | 'NORMAL' | 'BAD' | 'VERY_BAD';
+/* =========================
+ * 타입
+ * ========================= */
+type EmotionCode =
+  | 'VERY_GOOD'
+  | 'GOOD'
+  | 'NORMAL'
+  | 'BAD'
+  | 'VERY_BAD';
+
+const EMOTIONS = [
+  { code: 'VERY_GOOD', label: '설렘', icon: '😍', score: 5 },
+  { code: 'GOOD', label: '행복', icon: '😊', score: 4 },
+  { code: 'NORMAL', label: '그럭저럭', icon: '😐', score: 3 },
+  { code: 'BAD', label: '피곤함', icon: '😵', score: 2 },
+  { code: 'VERY_BAD', label: '우울함/화남', icon: '😢', score: 1 },
+] as const;
 
 interface DateCourse {
   id: string;
@@ -19,150 +37,244 @@ interface DateCourse {
   category: string;
   source: 'wishlist' | 'ai';
   description?: string;
+  ownerType?: 'PERSONAL' | 'COUPLE';
+  ownerUserId?: string;
 }
 
 export default function RecommendationScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
-  const [step, setStep] = useState<'select' | 'result'>('select');
-  const [selectedEmotion, setSelectedEmotion] = useState<Emotion | null>(null);
-  const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
+
+  const [step, setStep] = useState<'select' | 'waiting' | 'result'>('select');
+
   const [loading, setLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
 
-  const emotions: { emotion: Emotion; label: string; icon: string }[] = [
-    { emotion: 'VERY_GOOD', label: '설렘', icon: '😍' },
-    { emotion: 'GOOD', label: '행복', icon: '😊' },
-    { emotion: 'NORMAL', label: '그럭저럭', icon: '😐' },
-    { emotion: 'BAD', label: '피곤함', icon: '😵' },
-    { emotion: 'VERY_BAD', label: '우울함', icon: '😢' },
-  ];
+  const [selectedEmotion, setSelectedEmotion] = useState<EmotionCode | null>(null);
 
+  const { myNickname, partnerNickname, user } = useAuthCouple();
+
+
+  /* =========================
+   * 초기 유저 / 커플 확인
+   * ========================= */
   useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-      const { data: coupleIdData } = await supabase.rpc('get_my_couple_id');
-      if (!coupleIdData) { setCoupleId(null); return; }
-      setCoupleId(coupleIdData);
-    }
+    const init = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return;
+
+      setUserId(data.user.id);
+
+      const { data: myCouple } = await supabase
+        .from('couple_members')
+        .select('couple_id')
+        .eq('user_id', data.user.id)
+        .maybeSingle();
+
+      if (myCouple?.couple_id) {
+        setCoupleId(myCouple.couple_id);
+        await checkTodayEmotionAndInit(myCouple.couple_id);
+      }
+    };
+
     init();
   }, []);
 
-  const getEnergyForEmotion = (emotion: Emotion): string[] => {
-    const energyMap: Record<Emotion, string[]> = {
-      'VERY_GOOD': ['중간', '높음'],
-      'GOOD': ['높음', '중간'],
-      'NORMAL': ['중간'],
-      'BAD': ['낮음'],
-      'VERY_BAD': ['낮음', '중간'],
-    };
-    return energyMap[emotion];
-  };
+  /* =========================
+   * 오늘 감정 상태 확인
+   * ========================= */
+  const checkTodayEmotionAndInit = async (cid: string) => {
+    const today = new Date().toISOString().slice(0, 10);
 
-  const handleEmotionSelect = async (emotion: Emotion) => {
-    setSelectedEmotion(emotion);
-    setLoading(true);
-    setStep('result');
-    try {
-      const wishlists = await fetchWishlists(userId!, null, coupleId);
-      const preferredEnergies = getEnergyForEmotion(emotion);
-      const scoredWishlists = wishlists.map(item => {
-        let score = 0;
-        if (item.mood && item.mood.includes(emotion)) score += 10;
-        if (item.energy && preferredEnergies.includes(item.energy)) score += 5;
-        return { ...item, score };
-      }).filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+    const { data } = await supabase
+      .from('emotion_logs')
+      .select('id')
+      .eq('couple_id', cid)
+      .eq('date', today);
 
-      const wishlistCourses: DateCourse[] = scoredWishlists.slice(0, 3).map(item => ({
-        id: item.id,
-        title: item.title,
-        category: getCategoryByEnergy(item.energy),
-        source: 'wishlist',
-        description: `${item.energy} 에너지 · ${item.mood}`,
-      }));
-
-      const aiCount = Math.max(0, 4 - wishlistCourses.length);
-      const aiCourses = generateAICourses(emotion).slice(0, aiCount);
-      setRecommendations([...wishlistCourses, ...aiCourses]);
-    } catch (error) {
-      setRecommendations(generateAICourses(emotion).slice(0, 4));
-    } finally {
-      setLoading(false);
+    if (data && data.length >= 2) {
+      await loadRecommendations(cid);
+      setStep('result');
+    } else {
+      setStep('select');
     }
   };
 
-  const getCategoryByEnergy = (energy: string): string => {
-    if (energy === '높음') return '액티비티';
-    if (energy === '낮음') return '카페';
-    return '맛집';
+  /* =========================
+   * 감정 선택 → 저장
+   * ========================= */
+  const handleEmotionSelect = async (
+  emotion: EmotionCode,
+  score: number
+) => {
+  if (!userId || !coupleId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    setLoading(true);
+
+    const { error } = await supabase
+      .from('emotion_logs')
+      .upsert(
+        {
+          couple_id: coupleId,
+          user_id: userId,
+          emotion_code: emotion,
+          emotion_score: score,
+          date: today,
+        },
+        { onConflict: 'user_id,date' }
+      );
+
+    if (error) throw error;
+
+    // 🔥 다시 2명인지 체크
+    const { data: logs } = await supabase
+      .from('emotion_logs')
+      .select('id')
+      .eq('couple_id', coupleId)
+      .eq('date', today);
+
+    if (logs && logs.length >= 2) {
+      await loadRecommendations(coupleId);
+      setStep('result');
+    } else {
+      Alert.alert('상대방을 기다리는 중이에요 💌');
+      setStep('waiting'); 
+    }
+
+  } catch (e) {
+    console.error(e);
+    Alert.alert('오류', '감정 저장에 실패했어요.');
+  } finally {
+    setLoading(false);
+  }
+
+  setSelectedEmotion(emotion);
+
+};
+
+  /* =========================
+   * 추천 로딩 (RPC 기반)
+   * ========================= */
+  const loadRecommendations = async (cid: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: wishes, error } = await supabase.rpc(
+      'get_recommended_wishes',
+      {
+        p_couple_id: cid,
+        p_date: today,
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    if (!wishes || wishes.length === 0) {
+      setRecommendations(generateAICoursesByScore(3));
+      return;
+    }
+
+    const courses: DateCourse[] = wishes.map((item: WishlistItem) => ({
+      id: item.id,
+      title: item.title,
+      category: item.energy,
+      source: 'wishlist',
+      description: `${item.energy} 에너지 · ${item.mood}`,
+      ownerType: item.owner_type,
+      ownerUserId: item.owner_user_id,
+    }));
+
+    setRecommendations(courses);
   };
 
-  const generateAICourses = (emotion: Emotion): DateCourse[] => {
-    const coursesByEmotion: Record<Emotion, DateCourse[]> = {
-      'VERY_GOOD': [
-        { id: 'ai-1', title: '성수 감성 카페', category: '카페', source: 'ai', description: '예쁜 카페에서 달달한 디저트' },
-        { id: 'ai-2', title: '북촌 한옥마을 산책', category: '액티비티', source: 'ai', description: '고즈넉한 골목길 데이트' },
-        { id: 'ai-3', title: '이태원 루프탑 바', category: '맛집', source: 'ai', description: '야경 보며 로맨틱한 분위기' },
-      ],
-      'GOOD': [
-        { id: 'ai-4', title: '홍대 맛집 투어', category: '맛집', source: 'ai', description: '분위기 좋은 레스토랑에서 즐거운 식사' },
-        { id: 'ai-5', title: '롯데월드 타워 전망대', category: '액티비티', source: 'ai', description: '서울의 야경을 함께 감상' },
-        { id: 'ai-6', title: '망원 한강공원 피크닉', category: '액티비티', source: 'ai', description: '돗자리 펴고 간식 먹으며 수다' },
-      ],
-      'NORMAL': [
-        { id: 'ai-7', title: '동네 산책', category: '액티비티', source: 'ai', description: '가볍게 동네 한 바퀴' },
-        { id: 'ai-8', title: '편한 카페', category: '카페', source: 'ai', description: '편하게 차 마시며 수다' },
-        { id: 'ai-9', title: '근처 맛집', category: '맛집', source: 'ai', description: '가까운 곳에서 식사' },
-      ],
-      'BAD': [
-        { id: 'ai-10', title: '조용한 카페에서 휴식', category: '카페', source: 'ai', description: '편안한 소파에서 차 한잔' },
-        { id: 'ai-11', title: '집에서 영화 보기', category: '집데이트', source: 'ai', description: '소파에 누워 편하게 영화 감상' },
-        { id: 'ai-12', title: '마사지 스파', category: '액티비티', source: 'ai', description: '커플 마사지로 피로 풀기' },
-      ],
-      'VERY_BAD': [
-        { id: 'ai-13', title: '한강 노을 산책', category: '액티비티', source: 'ai', description: '노을 보며 마음 달래기' },
-        { id: 'ai-14', title: '북카페에서 독서', category: '카페', source: 'ai', description: '책 읽으며 여유로운 시간' },
-        { id: 'ai-15', title: '클라이밍 체험', category: '액티비티', source: 'ai', description: '땀 흘리며 스트레스 해소' },
-      ],
-    };
-    return coursesByEmotion[emotion].slice(0, 2);
+  /* =========================
+   * 위시 없을 경우 AI 더미 추천
+   * ========================= */
+  const generateAICoursesByScore = (score: number): DateCourse[] => {
+    if (score >= 4) {
+      return [
+        {
+          id: 'ai-1',
+          title: '놀이공원 데이트',
+          category: '액티비티',
+          source: 'ai',
+        },
+      ];
+    }
+    if (score >= 3) {
+      return [
+        {
+          id: 'ai-2',
+          title: '분위기 좋은 맛집',
+          category: '맛집',
+          source: 'ai',
+        },
+      ];
+    }
+    return [
+      {
+        id: 'ai-3',
+        title: '조용한 카페',
+        category: '카페',
+        source: 'ai',
+      },
+    ];
   };
 
-  const handleReset = () => {
-    setStep('select');
-    setSelectedEmotion(null);
-    setRecommendations([]);
-  };
+  const getEmotionEmoji = (code: EmotionCode) => {
+  return EMOTIONS.find(e => e.code === code)?.icon ?? '';
+};
 
-  const getEmotionLabel = (emotion: Emotion) => ({
-    'VERY_GOOD': '설렘', 'GOOD': '행복', 'NORMAL': '그럭저럭',
-    'BAD': '피곤함', 'VERY_BAD': '우울함/화남',
-  }[emotion]);
+const getEmotionLabel = (code: EmotionCode) => {
+  return EMOTIONS.find(e => e.code === code)?.label ?? '';
+};
 
-  const getEmotionEmoji = (emotion: Emotion) => ({
-    'VERY_GOOD': '😍', 'GOOD': '😊', 'NORMAL': '😐',
-    'BAD': '😵', 'VERY_BAD': '😢',
-  }[emotion]);
+const handleReset = () => {
+  setStep('select');
+  setRecommendations([]);
+  setSelectedEmotion(null);
+};
 
-  // 감정 선택 화면
+
+  /* =========================
+   * 감정 선택 화면
+   * ========================= */
+  if (step === 'waiting') {
+  return (
+    <View style={styles.modalOverlay}>
+       <MenuButton />
+      <View style={styles.modalContainer}>
+        <Text style={{ fontSize: 18, fontWeight: '600' }}>
+          💌 {partnerNickname}가 감정을 선택하는 중이에요
+        </Text>
+      </View>
+    </View>
+  );
+}
+
   if (step === 'select') {
     return (
       <View style={styles.modalOverlay}>
         <MenuButton />
         <View style={styles.modalContainer}>
+
           <View style={styles.modalHeader}>
             <Text style={styles.modalHeartEmoji}>🩷</Text>
-            <Text style={styles.modalTitle}>오늘 기분이 어떠세요?</Text>
+            <Text style={styles.modalTitle}>{myNickname}님 오늘 기분이 어떠세요?</Text>
           </View>
 
           <View style={styles.emojiFrame}>
             {/* 윗줄: 3개 */}
             <View style={styles.emojiRow}>
-              {emotions.slice(0, 3).map(({ emotion, label, icon }) => (
-                <TouchableOpacity
-                  key={emotion}
-                  onPress={() => handleEmotionSelect(emotion)}
+             {EMOTIONS.slice(0, 3).map(({ code, label, icon, score }) => (
+              <TouchableOpacity
+                key={code}
+                onPress={() => handleEmotionSelect(code, score)}
                   activeOpacity={0.7}
                   style={styles.emojiButton}
                 >
@@ -173,10 +285,10 @@ export default function RecommendationScreen() {
             </View>
             {/* 아랫줄: 2개 가운데 정렬 */}
             <View style={[styles.emojiRow, { justifyContent: 'center', gap: 32 }]}>
-              {emotions.slice(3).map(({ emotion, label, icon }) => (
+              {EMOTIONS.slice(3).map(({ code, label, icon, score }) => (
                 <TouchableOpacity
-                  key={emotion}
-                  onPress={() => handleEmotionSelect(emotion)}
+                  key={code}
+                  onPress={() => handleEmotionSelect(code, score)}
                   activeOpacity={0.7}
                   style={styles.emojiButton}
                 >
@@ -206,7 +318,10 @@ export default function RecommendationScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.header}> 
+
+        <MenuButton />   
+
         <TouchableOpacity style={styles.backButton} onPress={handleReset}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
@@ -236,7 +351,15 @@ export default function RecommendationScreen() {
                       <Text style={styles.courseTitle}>{course.title}</Text>
                       {course.source === 'wishlist' && (
                         <View style={styles.wishlistBadge}>
-                          <Text style={styles.wishlistBadgeText}>💖 위시</Text>
+                          <Text style={styles.wishlistBadgeText}>
+                            💖 {
+                              course.ownerType === 'COUPLE'
+                                ? '커플'
+                                : course.ownerUserId === user?.id
+                                  ? `${myNickname}`
+                                  : `${partnerNickname ?? '상대'}`
+                            }
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -268,6 +391,7 @@ export default function RecommendationScreen() {
       </View>
     </ScrollView>
   );
+
 }
 
 const styles = StyleSheet.create({

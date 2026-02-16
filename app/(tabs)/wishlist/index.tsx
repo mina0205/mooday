@@ -5,6 +5,7 @@ import MenuButton from '@/components/MenuButton';
 import { addWishlist, deleteWishlist, fetchWishlists, updateWishlist } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
 import { OwnerType, WishlistItem } from '@/src/types/wishlist';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -14,62 +15,114 @@ import {
 
 export default function WishlistScreen() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [partnerId, setPartnerId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
+
   const [myWishlists, setMyWishlists] = useState<WishlistItem[]>([]);
   const [partnerWishlists, setPartnerWishlists] = useState<WishlistItem[]>([]);
   const [coupleWishlists, setCoupleWishlists] = useState<WishlistItem[]>([]);
+
   const [loading, setLoading] = useState(true);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
+
   const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
 
+  const { myNickname, partnerNickname } = useAuthCouple();
+
+
+  // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
   useEffect(() => {
-    async function init() {
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-      const { data: coupleId, error: coupleErr } = await supabase.rpc('get_my_couple_id');
-      if (coupleErr || !coupleId) { setCoupleId(null); setPartnerId(null); return; }
-      setCoupleId(coupleId);
-      const { data: userIds, error: usersErr } = await supabase.rpc('get_couple_user_ids');
-      if (usersErr) return;
-      if (userIds?.length === 2) {
-        const partner = userIds.find((id: string) => id !== user.id);
-        setPartnerId(partner ?? null);
+      if (!user) {
+        setLoading(false);
+        return;
       }
-    }
+
+      setUserId(user.id);
+
+      const { data: coupleId } = await supabase.rpc('get_my_couple_id');
+      setCoupleId(coupleId ?? null);
+    };
+
     init();
   }, []);
 
-  useEffect(() => { if (userId) loadWishlists(); }, [userId, partnerId, coupleId]);
+  // 위시 로딩 트리거 
+  useEffect(() => {
+  if (userId) {
+    loadWishlists();
+  }
+}, [userId, coupleId]);
 
-  useFocusEffect(
-    React.useCallback(() => { if (userId) loadWishlists(); }, [userId, partnerId, coupleId])
-  );
+useFocusEffect(
+  React.useCallback(() => {
+    if (userId) {
+      loadWishlists();
+    }
+  }, [userId, coupleId])
+);
 
   const loadWishlists = async () => {
-    if (!userId) return;
-    if (coupleId && !partnerId) return;
-    setLoading(true);
-    try {
-      const data = await fetchWishlists(userId, partnerId, coupleId);
-      setMyWishlists(data.filter(item => item.owner_user_id === userId && item.owner_type === 'PERSONAL'));
-      setPartnerWishlists(data.filter(item => item.owner_type === 'PERSONAL' && item.owner_user_id !== userId));
-      setCoupleWishlists(data.filter(item => item.owner_type === 'COUPLE'));
-    } catch (error) {
-      Alert.alert('오류', '위시리스트를 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!userId) return;
+
+  setLoading(true);
+  try {
+    const data = await fetchWishlists(userId,coupleId);
+
+    // ✅ 내 개인 위시
+    const mine = data.filter(
+      item =>
+        item.owner_type === 'PERSONAL' &&
+        item.owner_user_id === userId
+    );
+
+    // ✅ 상대 개인 위시 (partnerId 사용 안함)
+    const partner = data.filter(
+      item =>
+        item.owner_type === 'PERSONAL' &&
+        item.owner_user_id !== userId
+    );
+
+    // ✅ 커플 위시
+    const couple = data.filter(
+      item => item.owner_type === 'COUPLE'
+    );
+
+    setMyWishlists(mine);
+    setPartnerWishlists(partner);
+    setCoupleWishlists(couple);
+
+    console.log('📊 내 위시:', mine.length);
+    console.log('📊 상대 위시:', partner.length);
+    console.log('📊 커플 위시:', couple.length);
+  } catch (e) {
+    console.error('❌ 위시리스트 로딩 실패:', e);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleAddWishlist = async (title: string, energy: string, energyScore: number, energySource: string, mood: string, ownerType: OwnerType) => {
     if (!userId) { Alert.alert('알림', '로그인이 필요합니다.'); return; }
     try {
-      const newWishlist = await addWishlist(userId, coupleId, title, energy, energyScore, energySource, mood, ownerType);
-      if (ownerType === 'PERSONAL') setMyWishlists([newWishlist, ...myWishlists]);
-      else setCoupleWishlists([newWishlist, ...coupleWishlists]);
+      const newWishlist = await addWishlist(
+        userId,
+        ownerType === 'COUPLE' ? coupleId : null,
+        title,     
+        ownerType
+      );
+      
+      console.log('🎯 위시리스트 추가:', { title, energy, energyScore, mood, ownerType });
+
+      if (ownerType === 'PERSONAL') {
+        setMyWishlists([newWishlist, ...myWishlists]);
+      } else {
+        setCoupleWishlists([newWishlist, ...coupleWishlists]);
+      }
+      
       setModalVisible(false);
       Alert.alert('성공', '위시리스트가 추가되었습니다!');
     } catch (error: any) {
@@ -90,25 +143,56 @@ export default function WishlistScreen() {
   };
 
   const handleEditWishlist = (item: WishlistItem) => {
-    if (item.owner_type === 'PERSONAL' && item.owner_user_id !== userId) { Alert.alert('권한 없음', '상대방의 위시는 수정할 수 없어요.'); return; }
-    if (item.owner_type === 'COUPLE' && item.couple_id !== coupleId) { Alert.alert('권한 없음', '커플 위시만 수정할 수 있어요.'); return; }
-    setEditingWishlist(item); setModalOwnerType(item.owner_type); setModalVisible(true);
+  // 권한 체크 (UI 1차 방어)
+  if (
+    item.owner_type === 'PERSONAL' &&
+    item.owner_user_id !== userId
+  ) {
+    Alert.alert('권한 없음', '상대방의 위시는 수정할 수 없어요.');
+    return;
+  }
+
+  if (
+    item.owner_type === 'COUPLE' &&
+    item.couple_id !== coupleId
+  ) {
+    Alert.alert('권한 없음', '커플 위시만 수정할 수 있어요.');
+    return;
+  }
+
+  setEditingWishlist(item);
+  setModalOwnerType(item.owner_type);
+  setModalVisible(true);
+};
+
+// 위시 수정
+const handleUpdateWishlist = async (
+  id: string,
+  title: string,
+  energy: string,
+  energyScore: number, 
+  energySource: string,
+  mood: string
+) => {
+  try {
+    const updated = await updateWishlist(id, title, energy, energyScore, energySource, mood);
+    await loadWishlists();
+
+    setModalVisible(false);
+    setEditingWishlist(null);
+
+    Alert.alert('성공', '위시리스트가 수정되었습니다!');
+  } catch (e) {
+    console.error('❌ 수정 실패:', e);
+    Alert.alert('오류', '수정에 실패했습니다.');
+  }
+};
+
+  const openAddModal = (ownerType: OwnerType) => {
+    setModalOwnerType(ownerType);
+    setModalVisible(true);
   };
 
-  const handleUpdateWishlist = async (id: string, title: string, energy: string, energyScore: number, energySource: string, mood: string) => {
-    try {
-      const updated = await updateWishlist(id, title, energy, energyScore, energySource, mood);
-      setMyWishlists(prev => prev.map(item => item.id === id ? updated : item));
-      setPartnerWishlists(prev => prev.map(item => item.id === id ? updated : item));
-      setCoupleWishlists(prev => prev.map(item => item.id === id ? updated : item));
-      setModalVisible(false); setEditingWishlist(null);
-      Alert.alert('성공', '위시리스트가 수정되었습니다!');
-    } catch (e) {
-      Alert.alert('오류', '수정에 실패했습니다.');
-    }
-  };
-
-  const openAddModal = (ownerType: OwnerType) => { setModalOwnerType(ownerType); setModalVisible(true); };
 
   if (loading) return <View style={styles.centerContainer}><ActivityIndicator size="large" color="#6EC6FF" /></View>;
   if (!userId) return <View style={styles.centerContainer}><Text style={styles.emptyText}>로그인이 필요합니다</Text></View>;
@@ -131,7 +215,7 @@ export default function WishlistScreen() {
           <View style={[styles.sectionHeader, styles.mySection]}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.redHeartIcon}>♥</Text>
-              <Text style={styles.sectionTitle}>내가 하고싶은 데이트</Text>
+              <Text style={styles.sectionTitle}>{myNickname}의 위시</Text>
             </View>
             <TouchableOpacity style={styles.addButton} onPress={() => openAddModal('PERSONAL')}>
               <Text style={styles.addButtonText}>+</Text>
@@ -147,7 +231,7 @@ export default function WishlistScreen() {
           <View style={[styles.sectionHeader, styles.partnerSection]}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.blueHeartIcon}>♥</Text>
-              <Text style={styles.sectionTitle}>상대방이 하고싶은 데이트</Text>
+              <Text style={styles.sectionTitle}>{partnerNickname}의 위시</Text>
             </View>
           </View>
           <View style={styles.sectionContent}>

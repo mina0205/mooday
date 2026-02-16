@@ -36,7 +36,7 @@ export default function MenuButton() {
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <SafeAreaView style={styles.menuBox}>
             <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>MOODAY</Text>
+              <Text style={styles.menuTitle}> MOODAY</Text>
               <TouchableOpacity onPress={() => setOpen(false)}>
                 <Text style={styles.closeBtn}>✕</Text>
               </TouchableOpacity>

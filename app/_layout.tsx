@@ -1,37 +1,28 @@
+
+/*
+Root Layout은 라우팅만 책임진다 
+*/
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { supabase } from '../src/lib/supabase';
+import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
+import { AuthCoupleProvider, useAuthCouple } from '@/src/context/AuthCoupleContext';
 
-export default function RootLayout() {
-  const router = useRouter(); 
+function AppNavigator() {
+  const router = useRouter();
   const segments = useSegments();
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { session, loading } = useAuthCouple();
 
   useEffect(() => {
     if (loading) return;
 
-    // login이랑 signup 둘 다 인증 없이 접근 가능
-    const isPublicPage = segments[0] === 'login' || segments[0] === 'signup';
+    const isPublicPage =
+      segments[0] === 'login' || segments[0] === 'signup';
 
-    if (!session && !isPublicPage) {
-      router.replace('/login');
+    if (!session) {
+      if (!isPublicPage) {
+        router.replace('/login');
+      }
+      return;
     }
 
     if (session && isPublicPage) {
@@ -41,11 +32,19 @@ export default function RootLayout() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
       </View>
     );
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+export default function RootLayout() {
+  return (
+    <AuthCoupleProvider>
+      <AppNavigator />
+    </AuthCoupleProvider>
+  );
 }

@@ -3,11 +3,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/src/lib/supabase';
 import MenuButton from '@/components/MenuButton';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 
 export default function SettingsPage() {
   const router = useRouter();
+
   const [nickname, setNickname] = useState('');
   const [newNickname, setNewNickname] = useState('');
+  
+  const { refreshAll } = useAuthCouple();
+
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [nicknameLoading, setNicknameLoading] = useState(false);
 
@@ -56,6 +61,7 @@ export default function SettingsPage() {
     if (error) {
       Alert.alert('변경 실패', error.message);
     } else {
+      await refreshAll(); //별명 ui 바로 적용 
       setNickname(newNickname.trim());
       setNewNickname('');
       setShowNicknameModal(false);

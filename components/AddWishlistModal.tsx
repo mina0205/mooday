@@ -12,11 +12,11 @@ import {
 import { OwnerType, WishlistItem } from '@/src/types/wishlist';
 import { analyzeWishlist } from '@/services/analyzeWishlist';
 
-interface AddWishlistModalProps {
+interface Props {
   visible: boolean;
   onClose: () => void;
 
-  // create
+  /** ⭐ 핵심: 부모에서 내려주는 콜백 */
   onAdd?: (
     title: string,
     energy: string,
@@ -26,7 +26,6 @@ interface AddWishlistModalProps {
     ownerType: OwnerType
   ) => void;
 
-  // edit
   onUpdate?: (
     id: string,
     title: string,
@@ -49,61 +48,68 @@ export default function AddWishlistModal({
   isCouple,
   mode,
   initialItem,
-}: AddWishlistModalProps) {
+}: Props) {
   const [wishText, setWishText] = useState('');
 
+  /* =========================
+   * edit 모드 초기값
+   * ========================= */
   useEffect(() => {
     if (mode === 'edit' && initialItem) {
       setWishText(initialItem.title);
+    } else {
+      setWishText('');
     }
   }, [mode, initialItem]);
 
-  const handleSubmit = () => {
+  /* =========================
+   * submit
+   * ========================= */
+  const handleSubmit = async () => {
     const trimmed = wishText.trim();
     if (!trimmed) {
       Alert.alert('알림', '데이트 위시를 입력해주세요.');
       return;
     }
 
-    const analyzed = analyzeWishlist(trimmed);
+    try {
+      const analyzed = await analyzeWishlist(trimmed);
 
-    if (mode === 'create') {
-      if (!onAdd) return;
-      const ownerType: OwnerType = isCouple ? 'COUPLE' : 'PERSONAL';
+      if (mode === 'create') {
+        onAdd?.(
+          analyzed.title,
+          analyzed.energy,
+          analyzed.energy_score,
+          analyzed.energy_source,
+          analyzed.mood,
+          isCouple ? 'COUPLE' : 'PERSONAL'
+        );
+      }
 
-      onAdd(
-        analyzed.title,
-        analyzed.energy,
-        analyzed.energy_score,
-        analyzed.energy_source,
-        analyzed.mood,
-        ownerType
-      );
-    } else {
-      if (!onUpdate || !initialItem) return;
+      if (mode === 'edit' && initialItem) {
+        onUpdate?.(
+          initialItem.id,          // ⭐ 기존 ID 유지
+          analyzed.title,
+          analyzed.energy,
+          analyzed.energy_score,
+          analyzed.energy_source,
+          analyzed.mood
+        );
+      }
 
-      onUpdate(
-        initialItem.id,
-        analyzed.title,
-        analyzed.energy,
-        analyzed.energy_score,
-        analyzed.energy_source,
-        analyzed.mood
-      );
+      setWishText('');
+      onClose();
+    } catch (e) {
+      console.error('❌ 위시 분석 실패:', e);
+      Alert.alert('오류', '위시 처리에 실패했어요.');
     }
-
-    setWishText('');
-  };
-
-  const handleClose = () => {
-    setWishText('');
-    onClose();
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
               {mode === 'edit'
@@ -112,11 +118,12 @@ export default function AddWishlistModal({
                 ? '우리의 위시 추가'
                 : '내 위시 추가'}
             </Text>
-            <TouchableOpacity onPress={handleClose}>
+            <TouchableOpacity onPress={onClose}>
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
 
+          {/* Content */}
           <ScrollView style={styles.content}>
             <TextInput
               style={styles.textArea}
@@ -128,18 +135,9 @@ export default function AddWishlistModal({
             />
           </ScrollView>
 
+          {/* Footer */}
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={handleClose}
-            >
-              <Text style={styles.cancelText}>취소</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.addButton]}
-              onPress={handleSubmit}
-            >
+            <TouchableOpacity style={styles.button} onPress={handleSubmit}>
               <Text style={styles.addText}>
                 {mode === 'edit' ? '수정' : '추가'}
               </Text>
@@ -151,6 +149,9 @@ export default function AddWishlistModal({
   );
 }
 
+/* =========================
+ * styles
+ * ========================= */
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -189,25 +190,13 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   footer: {
-    flexDirection: 'row',
     padding: 20,
-    gap: 12,
   },
   button: {
-    flex: 1,
+    backgroundColor: '#6EC6FF',
     padding: 14,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#eee',
-  },
-  cancelText: {
-    fontWeight: '600',
-    color: '#666',
-  },
-  addButton: {
-    backgroundColor: '#6EC6FF',
   },
   addText: {
     fontWeight: '600',

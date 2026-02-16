@@ -9,14 +9,20 @@ import { HeartProgress } from '@/src/components/dday/HeartProgress';
 import { CollectedHeartsPage } from '@/src/components/dday/CollectedHearts';
 import { getDaysTogether } from '@/src/components/dday/getDaysTogether';
 import MenuButton from '@/components/MenuButton';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 
 export default function DdayPage() {
   const [startDate, setStartDate] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+
   const [tempDate, setTempDate] = useState<Date>(new Date());
   const [showAnniversary, setShowAnniversary] = useState(false);
+
   const [showCollectedHearts, setShowCollectedHearts] = useState(false);
+  
+  const { myNickname, partnerNickname } = useAuthCouple();
 
   useEffect(() => { loadDday(); }, []);
 
@@ -62,8 +68,8 @@ export default function DdayPage() {
       <MenuButton />
 
       <HeartProgress filledCount={currentHeartDays} />
-      <Text style={styles.title}></Text>
-      <Text style={styles.title}>( 우리가 만난지 ..) </Text>
+        <Text style={styles.title}> </Text>
+      <Text style={styles.title}>{myNickname} 🩷 {partnerNickname}</Text>
       <Text style={styles.dday}>D + {dday}</Text>
 
       <TouchableOpacity onPress={() => setEditing(true)}>

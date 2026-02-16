@@ -1,164 +1,117 @@
 import { supabase } from '@/src/lib/supabase';
-import { WishlistItem, OwnerType } from '@/src/types/wishlist';
+import { OwnerType, WishlistItem } from '@/src/types/wishlist';
+import { analyzeWishlist } from './analyzeWishlist';
 
 /* =========================
  * 위시리스트 조회
  * ========================= */
 export async function fetchWishlists(
   userId: string,
-  partnerId: string | null,
   coupleId: string | null
 ): Promise<WishlistItem[]> {
-
-  console.log('🚨 fetchWishlists called');
-  console.log('👤 userId:', userId);
-  console.log('👫 coupleId:', coupleId);
-
-  // 1️⃣ 내 개인 위시
+  // 1️⃣ PERSONAL 전부 (RLS가 커플까지만 허용함)
   const { data: personal, error: personalError } = await supabase
     .from('wishlist_items')
     .select('*')
-    .eq('owner_type', 'PERSONAL')
-    .eq('owner_user_id', userId);
+    .eq('owner_type', 'PERSONAL');
 
-  if (personalError) {
-    console.error('❌ personal wishlist error:', personalError);
-    throw personalError;
-  }
+  if (personalError) throw personalError;
 
-  // 2️⃣ 상대방 개인 위시
-  let partnerPersonal: WishlistItem[] = [];
-
-  if (partnerId) {
-    const { data, error } = await supabase
-      .from('wishlist_items')
-      .select('*')
-      .eq('owner_type', 'PERSONAL')
-      .eq('owner_user_id', partnerId);
-
-    if (error) {
-      console.error('❌ partner personal wishlist error:', error);
-      throw error;
-    }
-
-    partnerPersonal = data ?? [];
-  }
-
-  // 3️⃣ 커플 위시
+  // 2️⃣ COUPLE
   let couple: WishlistItem[] = [];
-
   if (coupleId) {
-    const { data: coupleData, error: coupleError } = await supabase
+    const { data, error } = await supabase
       .from('wishlist_items')
       .select('*')
       .eq('owner_type', 'COUPLE')
       .eq('couple_id', coupleId);
 
-    if (coupleError) {
-      console.error('❌ couple wishlist error:', coupleError);
-      throw coupleError;
-    }
-
-    couple = coupleData ?? [];
+    if (error) throw error;
+    couple = data ?? [];
   }
 
-  // 4️⃣ 합치고 최신순 정렬
-  const merged = [
-    ...(personal ?? []),
-    ...(partnerPersonal ?? []),
-    ...couple,
-  ].sort(
+  return [...(personal ?? []), ...couple].sort(
     (a, b) =>
       new Date(b.created_at).getTime() -
       new Date(a.created_at).getTime()
   );
-
-  // 🔍 디버깅 로그
-  console.log('📊 personal:', personal?.length ?? 0);
-  console.log('📊 partner personal:', partnerPersonal.length);
-  console.log('📊 couple:', couple.length);
-  console.log('📊 merged:', merged.length);
-
-  return merged;
 }
 
 /* =========================
- * 위시리스트 추가
+ * ✅ 위시 추가 + AI 분석 + 로그 저장
  * ========================= */
 export async function addWishlist(
   userId: string,
   coupleId: string | null,
-  title: string,
-  energy: string,
-  energyScore: number,
-  energySource: string,
-  mood: string,
+  text: string,
   ownerType: OwnerType
 ): Promise<WishlistItem> {
-  let resolvedCoupleId = coupleId;
 
-  // COUPLE인데 coupleId 없으면 서버에서 직접 조회
-  if (ownerType === 'COUPLE' && !resolvedCoupleId) {
-    const { data, error } = await supabase.rpc('get_my_couple_id');
+  // 1️⃣ AI 분석
+  const analyzed = await analyzeWishlist(text);
 
-    if (error || !data) {
-      console.error('❌ get_my_couple_id 실패:', error);
-      throw new Error('커플이 연결되지 않았습니다.');
-    }
+  let resolvedCoupleId: string | null = null;
 
-    resolvedCoupleId = data;
+  if (ownerType === 'COUPLE') {
+    const { data } = await supabase
+      .from('couple_members')
+      .select('couple_id')
+      .eq('user_id', userId)
+      .single();
+
+    resolvedCoupleId = data?.couple_id ?? null;
   }
 
-  const payload = {
-    title,
-    energy,
-    energy_score: energyScore,
-    energy_source: energySource,
-    mood,
-    owner_type: ownerType,
-    owner_user_id: ownerType === 'PERSONAL' ? userId : null,
-    couple_id: ownerType === 'COUPLE' ? resolvedCoupleId : null,
-  };
-
-  console.log('📦 insert payload (resolved):', payload);
-
+  // 2️⃣ 위시 저장
   const { data, error } = await supabase
     .from('wishlist_items')
-    .insert(payload)
+    .insert({
+      title: analyzed.title,
+      energy: analyzed.energy,
+      energy_score: analyzed.energy_score,
+      energy_source: analyzed.energy_source,
+      mood: analyzed.mood,
+      owner_type: ownerType,
+      owner_user_id: userId,
+      couple_id: ownerType === 'COUPLE' ? resolvedCoupleId : null,
+    })
     .select()
-    .single(); // ⭐ RLS 체크 + 즉시 결과 반환
+    .single();
 
-  if (error) {
-    console.error('❌ addWishlist error:', error);
-    throw error;
-  }
+  if (error) throw error;
+
+  // 3️⃣ 🔥 분석 로그 저장 (insert 성공 후)
+  await supabase
+    .from('wishlist_analysis_logs')
+    .insert({
+      wishlist_id: data.id,
+      user_id: userId,
+      input_text: text,
+      energy_score: analyzed.energy_score,
+      energy_label: analyzed.energy,
+      energy_source: analyzed.energy_source,
+    });
 
   return data as WishlistItem;
 }
 
 /* =========================
- * 위시리스트 삭제
+ * 삭제
  * ========================= */
-export async function deleteWishlist(id: string): Promise<void> {
+export async function deleteWishlist(id: string) {
   const { data, error } = await supabase
     .from('wishlist_items')
     .delete()
     .eq('id', id)
     .select('id');
 
-  if (error) {
-    console.error('❌ deleteWishlist error:', error);
-    throw error;
-  }
-
-  // 실제로 삭제된 row가 없으면 실패 처리 (상대 위시 삭제 방지)
-  if (!data || data.length === 0) {
+  if (error || !data?.length) {
     throw new Error('DELETE_NOT_ALLOWED');
   }
 }
 
 /* =========================
- * 위시리스트 수정
+ * 수정
  * ========================= */
 export async function updateWishlist(
   id: string,
@@ -181,10 +134,19 @@ export async function updateWishlist(
     .select()
     .single();
 
-  if (error) {
-    console.error('❌ updateWishlist error:', error);
-    throw error;
-  }
-
+  if (error) throw error;
   return data as WishlistItem;
 }
+
+function consider(cb?: () => void): void {
+  if (typeof cb !== 'function') return;
+  try {
+    cb();
+  } catch (err) {
+    // Don't let optional side-effects break the main flow
+    // Keep a lightweight debug log to help troubleshooting
+    // eslint-disable-next-line no-console
+    console.warn('consider callback threw an error:', err);
+  }
+}
+
