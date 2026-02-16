@@ -20,19 +20,25 @@ const COLORS = {
 
 export default function HomeTab() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+
   const [calendarMode, setCalendarMode] = useState<'VIEW' | 'ADD'>('VIEW');
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [scheduleType, setScheduleType] = useState<'PERSONAL' | 'COUPLE'>('PERSONAL');
   const [userCoupleId, setUserCoupleId] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
+
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [coupleUserIds, setCoupleUserIds] = useState<string[]>([]);
 
@@ -197,6 +203,7 @@ export default function HomeTab() {
             </View>
           </View>
         </View>
+
         {showStartPicker && (
           <View style={styles.pickerWrapper}>
             <DateTimePicker

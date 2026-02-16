@@ -5,6 +5,7 @@ import MenuButton from '@/components/MenuButton';
 import { addWishlist, deleteWishlist, fetchWishlists, updateWishlist } from '@/services/wishlist';
 import { supabase } from '@/src/lib/supabase';
 import { OwnerType, WishlistItem } from '@/src/types/wishlist';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -26,6 +27,8 @@ export default function WishlistScreen() {
   const [modalOwnerType, setModalOwnerType] = useState<OwnerType>('PERSONAL');
 
   const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
+
+  const { myNickname, partnerNickname } = useAuthCouple();
 
 
   // 현재 사용자 확인 및 커플 정보 가져오기 (RPC)
@@ -212,7 +215,7 @@ const handleUpdateWishlist = async (
           <View style={[styles.sectionHeader, styles.mySection]}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.redHeartIcon}>♥</Text>
-              <Text style={styles.sectionTitle}>내가 하고싶은 데이트</Text>
+              <Text style={styles.sectionTitle}>{myNickname}의 위시</Text>
             </View>
             <TouchableOpacity style={styles.addButton} onPress={() => openAddModal('PERSONAL')}>
               <Text style={styles.addButtonText}>+</Text>
@@ -228,7 +231,7 @@ const handleUpdateWishlist = async (
           <View style={[styles.sectionHeader, styles.partnerSection]}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.blueHeartIcon}>♥</Text>
-              <Text style={styles.sectionTitle}>상대방이 하고싶은 데이트</Text>
+              <Text style={styles.sectionTitle}>{partnerNickname}의 위시</Text>
             </View>
           </View>
           <View style={styles.sectionContent}>

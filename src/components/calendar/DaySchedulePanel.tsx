@@ -6,6 +6,8 @@
 import { View, Text, StyleSheet, Animated, Dimensions,TouchableOpacity } from 'react-native';
 import type { Schedule } from '@/src/types/schedule';
 import { useEffect, useRef } from 'react';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
+
 
 type Props = {
   date: string;
@@ -26,6 +28,7 @@ export function DaySchedulePanel({
 }: Props) {
   const { height: SCREEN_HEIGHT } = Dimensions.get('window');
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const { myNickname, partnerNickname } = useAuthCouple();
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -60,8 +63,19 @@ export function DaySchedulePanel({
         </TouchableOpacity>
       </View>
 
-      <Section title="내 일정" color="#5DA9FF" schedules={mySchedules} onPressSchedule={onPressSchedule} />
-      <Section title="상대 일정" color="#7ED957" schedules={partnerSchedules} onPressSchedule={onPressSchedule} />
+      <Section
+        title={`${myNickname ?? '내'} 일정`}
+        color="#5DA9FF"
+        schedules={mySchedules}
+        onPressSchedule={onPressSchedule}
+      />
+
+      <Section
+        title={`${partnerNickname ?? '상대'} 일정`}
+        color="#7ED957"
+        schedules={partnerSchedules}
+        onPressSchedule={onPressSchedule}
+      />
       <Section title="커플 일정" color="#C77DFF" schedules={coupleSchedules} onPressSchedule={onPressSchedule} />
     </Animated.View>
   );
