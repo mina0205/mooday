@@ -1,5 +1,6 @@
 import type { WishlistItem } from '@/src/types/wishlist';
 import { supabase } from '@/src/lib/supabase';
+import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 import MenuButton from '@/components/MenuButton';
 import React, { useEffect, useState } from 'react';
 import {
@@ -36,6 +37,8 @@ interface DateCourse {
   category: string;
   source: 'wishlist' | 'ai';
   description?: string;
+  ownerType?: 'PERSONAL' | 'COUPLE';
+  ownerUserId?: string;
 }
 
 export default function RecommendationScreen() {
@@ -47,7 +50,9 @@ export default function RecommendationScreen() {
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<DateCourse[]>([]);
 
-const [selectedEmotion, setSelectedEmotion] = useState<EmotionCode | null>(null);
+  const [selectedEmotion, setSelectedEmotion] = useState<EmotionCode | null>(null);
+
+  const { myNickname, partnerNickname, user } = useAuthCouple();
 
 
   /* =========================
@@ -180,13 +185,15 @@ const [selectedEmotion, setSelectedEmotion] = useState<EmotionCode | null>(null)
       category: item.energy,
       source: 'wishlist',
       description: `${item.energy} 에너지 · ${item.mood}`,
+      ownerType: item.owner_type,
+      ownerUserId: item.owner_user_id,
     }));
 
     setRecommendations(courses);
   };
 
   /* =========================
-   * AI 더미 추천
+   * 위시 없을 경우 AI 더미 추천
    * ========================= */
   const generateAICoursesByScore = (score: number): DateCourse[] => {
     if (score >= 4) {
@@ -240,9 +247,10 @@ const handleReset = () => {
   if (step === 'waiting') {
   return (
     <View style={styles.modalOverlay}>
+       <MenuButton />
       <View style={styles.modalContainer}>
         <Text style={{ fontSize: 18, fontWeight: '600' }}>
-          💌 상대가 감정을 선택하는 중이에요
+          💌 {partnerNickname}가 감정을 선택하는 중이에요
         </Text>
       </View>
     </View>
@@ -254,9 +262,10 @@ const handleReset = () => {
       <View style={styles.modalOverlay}>
         <MenuButton />
         <View style={styles.modalContainer}>
+
           <View style={styles.modalHeader}>
             <Text style={styles.modalHeartEmoji}>🩷</Text>
-            <Text style={styles.modalTitle}>오늘 기분이 어떠세요?</Text>
+            <Text style={styles.modalTitle}>{myNickname}님 오늘 기분이 어떠세요?</Text>
           </View>
 
           <View style={styles.emojiFrame}>
@@ -309,7 +318,10 @@ const handleReset = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.header}> 
+
+        <MenuButton />   
+
         <TouchableOpacity style={styles.backButton} onPress={handleReset}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
@@ -339,7 +351,15 @@ const handleReset = () => {
                       <Text style={styles.courseTitle}>{course.title}</Text>
                       {course.source === 'wishlist' && (
                         <View style={styles.wishlistBadge}>
-                          <Text style={styles.wishlistBadgeText}>💖 위시</Text>
+                          <Text style={styles.wishlistBadgeText}>
+                            💖 {
+                              course.ownerType === 'COUPLE'
+                                ? '커플'
+                                : course.ownerUserId === user?.id
+                                  ? `${myNickname}`
+                                  : `${partnerNickname ?? '상대'}`
+                            }
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -371,6 +391,7 @@ const handleReset = () => {
       </View>
     </ScrollView>
   );
+
 }
 
 const styles = StyleSheet.create({
