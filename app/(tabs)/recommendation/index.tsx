@@ -88,16 +88,26 @@ export default function RecommendationScreen() {
 
     const { data } = await supabase
       .from('emotion_logs')
-      .select('id')
+      .select('user_id')
       .eq('couple_id', cid)
-      .eq('date', today);
+      .eq('date', today); //자동 초기화 
 
-    if (data && data.length >= 2) {
-      await loadRecommendations(cid);
-      setStep('result');
-    } else {
-      setStep('select');
-    }
+    if (!data || data.length === 0) {
+    setStep('select');
+    return;
+  }
+
+  const hasMine = data.some(log => log.user_id === userId);
+  const hasBoth = data.length >= 2;
+
+  if (hasBoth) {
+    await loadRecommendations(cid);
+    setStep('result');
+  } else if (hasMine) {
+    setStep('waiting');  
+  } else {
+    setStep('select');
+  }
   };
 
   /* =========================
