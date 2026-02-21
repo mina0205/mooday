@@ -10,6 +10,7 @@ import { CollectedHeartsPage } from '@/src/components/dday/CollectedHearts';
 import { getDaysTogether } from '@/src/components/dday/getDaysTogether';
 import MenuButton from '@/components/MenuButton';
 import { useAuthCouple } from '@/src/context/AuthCoupleContext';
+import { HEART_ROWS } from '@/src/components/dday/heartMap';
 
 export default function DdayPage() {
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -59,8 +60,14 @@ export default function DdayPage() {
     );
   }
 
-  const dday = getDaysTogether(startDate);
-  const currentHeartDays = dday % 365 || 365;
+  const dday = Math.max(1, getDaysTogether(startDate));
+
+  const totalCells = HEART_ROWS.flat().filter(Boolean).length;
+
+  const remainder = dday % totalCells;
+
+  const currentHeartDays =
+    remainder === 0 ? totalCells : remainder;
 
   return (
     <View style={styles.container}>
