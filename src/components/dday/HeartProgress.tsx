@@ -8,6 +8,11 @@ type Props = {
 export function HeartProgress({ filledCount }: Props) {
   let filled = 0;
 
+  const totalCells = HEART_ROWS.flat().filter(Boolean).length;
+
+  // ✅ 안전하게 제한 (초과 방지)
+  const safeFilledCount = Math.min(filledCount, totalCells);
+
   return (
     <View style={styles.wrapper}>
       {HEART_ROWS.map((row, rowIdx) => (
@@ -18,7 +23,7 @@ export function HeartProgress({ filledCount }: Props) {
             }
 
             filled += 1;
-            const isFilled = filled <= filledCount;
+            const isFilled = filled <= safeFilledCount;
 
             return (
               <View
@@ -45,11 +50,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   cell: {
-    width: 11,
-    height: 11,
-    margin: 0.5,
-    borderRadius: 2,
-  },
+  width: 8,
+  height: 8,
+  margin: 0.3,
+  borderRadius: 2,
+},
   filled: {
     backgroundColor: '#FF5D8F',
   },
