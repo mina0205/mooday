@@ -8,6 +8,7 @@ import { AnniversaryList } from '@/src/components/dday/AnniversaryList';
 import { HeartProgress } from '@/src/components/dday/HeartProgress';
 import { CollectedHeartsPage } from '@/src/components/dday/CollectedHearts';
 import { getDaysTogether } from '@/src/components/dday/getDaysTogether';
+import { getYearlyHeartDays } from '@/src/components/dday/getYearlyHeartDays';
 import MenuButton from '@/components/MenuButton';
 import { useAuthCouple } from '@/src/context/AuthCoupleContext';
 
@@ -59,8 +60,10 @@ export default function DdayPage() {
     );
   }
 
-  const dday = getDaysTogether(startDate);
-  const currentHeartDays = dday % 365 || 365;
+  // 디데이 
+  const dday = Math.max(1, getDaysTogether(startDate));
+  //채워지는 킨 수 (매년 리셋 + 윤년 365칸 고정)
+  const currentHeartDays = getYearlyHeartDays(startDate);
 
   return (
     <View style={styles.container}>
