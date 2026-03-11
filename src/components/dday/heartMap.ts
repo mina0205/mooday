@@ -8,7 +8,7 @@ const MAX_WIDTH = 29;
 
 // 각 행의 구성 (합계: 365)
 const STRUCTURE = [
-  { left: 5,  gap: 8, right: 6 },  // 행 1: (12개) - 8칸 비워서 깊게 파임
+  { left: 5,  gap: 8, right: 6 },  // 행 1: (12개) - 8칸 비워서 깊게 파임 <-비대칭
   { left: 9,  gap: 5, right: 9 },  // 행 2: (18개) - 5칸 비움
   { left: 12, gap: 3, right: 12 }, // 행 3: (24개) - 3칸 비움
   { total: 29 },                   // 행 4: (29개) - 합쳐짐
