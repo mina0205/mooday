@@ -10,7 +10,7 @@ export default function SettingsPage() {
 
   const [nickname, setNickname] = useState('');
   const [newNickname, setNewNickname] = useState('');
-  
+
   const { refreshAll } = useAuthCouple();
 
   const [showNicknameModal, setShowNicknameModal] = useState(false);
@@ -30,6 +30,7 @@ export default function SettingsPage() {
     fetchNickname();
   }, []);
 
+ /* 로그아웃 처리 */
   const handleLogout = async () => {
     Alert.alert('로그아웃', '정말 로그아웃 할까요?', [
       { text: '취소', style: 'cancel' },
@@ -44,6 +45,7 @@ export default function SettingsPage() {
     ]);
   };
 
+  /* 별명 변경 처리 */
   const handleNicknameChange = async () => {
     if (!newNickname.trim()) {
       Alert.alert('별명을 입력해주세요!');
@@ -70,6 +72,7 @@ export default function SettingsPage() {
     setNicknameLoading(false);
   };
 
+  /* 회원 탈퇴 처리 */
   const handleWithdraw = () => {
     Alert.alert(
       '회원 탈퇴',
@@ -84,7 +87,9 @@ export default function SettingsPage() {
   const confirmWithdraw = async () => {
     try {
       const { error: rpcError } = await supabase.rpc('withdraw_user');
+
       if (rpcError) { Alert.alert('탈퇴 실패', '탈퇴 처리 중 오류가 발생했어요.'); return; }
+      
       await supabase.auth.signOut();
       Alert.alert('탈퇴 완료', '계정이 정상적으로 탈퇴되었습니다.', [
         { text: '확인', onPress: () => router.replace('/login') },
