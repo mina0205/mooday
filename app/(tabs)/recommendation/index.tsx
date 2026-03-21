@@ -13,9 +13,6 @@ import {
   Alert,
 } from 'react-native';
 
-/* =========================
- * 타입
- * ========================= */
 type EmotionCode =
   | 'VERY_GOOD'
   | 'GOOD'
@@ -37,7 +34,7 @@ interface DateCourse {
   category: string;
   source: 'wishlist' | 'ai';
   description?: string;
-  ownerType?: 'PERSONAL' | 'COUPLE' ;
+  ownerType?: 'PERSONAL' | 'COUPLE';
   ownerUserId?: string;
 }
 
@@ -54,10 +51,6 @@ export default function RecommendationScreen() {
 
   const { myNickname, partnerNickname, user } = useAuthCouple();
 
-
-  /* =========================
-   * 초기 유저 / 커플 확인
-   * ========================= */
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser();
@@ -80,227 +73,172 @@ export default function RecommendationScreen() {
     init();
   }, []);
 
-  /* =========================
-   * 오늘 감정 상태 확인
-   * ========================= */
   const checkTodayEmotionAndInit = async (cid: string, uid: string) => {
-  const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
-  const { data } = await supabase
-    .from('emotion_logs')
-    .select('user_id')
-    .eq('couple_id', cid)
-    .eq('date', today);
-
-  if (!data || data.length === 0) {
-    setStep('select');
-    return;
-  }
-
-  const hasMine = data.some(log => log.user_id === uid);
-  const hasBoth = data.length >= 2;
-
-  if (hasBoth) {
-    await loadRecommendations(cid);
-    setStep('result');
-  } else if (hasMine) {
-    setStep('waiting');
-  } else {
-    setStep('select');
-  }
-};
-
-  /* =========================
-   * 감정 선택 → 저장
-   * ========================= */
-  const handleEmotionSelect = async (
-  emotion: EmotionCode,
-  score: number
-) => {
-  if (!userId || !coupleId) return;
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  try {
-    setLoading(true);
-
-    const { error } = await supabase
+    const { data } = await supabase
       .from('emotion_logs')
-      .upsert(
-        {
-          couple_id: coupleId,
-          user_id: userId,
-          emotion_code: emotion,
-          emotion_score: score,
-          date: today,
-        },
-        { onConflict: 'user_id,date' }
-      );
-
-    if (error) throw error;
-
-    // 🔥 다시 2명인지 체크
-    const { data: logs } = await supabase
-      .from('emotion_logs')
-      .select('id')
-      .eq('couple_id', coupleId)
-      .eq('date', today);
-
-    if (logs && logs.length >= 2) {
-      await loadRecommendations(coupleId);
-      setStep('result');
-    } else {
-      Alert.alert('상대방을 기다리는 중이에요 💌');
-      setStep('waiting'); 
-    }
-
-  } catch (e) {
-    console.error(e);
-    Alert.alert('오류', '감정 저장에 실패했어요.');
-  } finally {
-    setLoading(false);
-  }
-
-  setSelectedEmotion(emotion);
-
-};
-
-  /* =========================
-   * 추천 로딩 (RPC 기반)
-   * ========================= */
-  /* =========================
- * 추천 로딩 (RPC 기반)
- * ========================= */
-const loadRecommendations = async (cid: string) => {
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data: wishes, error } = await supabase.rpc(
-    'get_recommended_wishes',
-    {
-      p_couple_id: cid,
-      p_date: today,
-    }
-  );
-
-  if (error) {
-    console.error(error);
-    return;
-  }
-
-  // 위시가 없는 경우 → 감정 평균 점수 기반 더미 AI 추천
-  if (!wishes || wishes.length === 0) {
-    const { data: logs } = await supabase
-      .from('emotion_logs')
-      .select('emotion_score')
+      .select('user_id')
       .eq('couple_id', cid)
       .eq('date', today);
 
-    const avgScore =
-      logs && logs.length > 0
-        ? logs.reduce((sum, l) => sum + l.emotion_score, 0) / logs.length
-        : 3; // fallback
-
-    setRecommendations(generateAICoursesByScore(avgScore));
-    return;
-  }
-
-  // 위시 기반 추천
-  const courses: DateCourse[] = wishes.map((item: WishlistItem) => ({
-    id: item.id,
-    title: item.title,
-    category: item.energy,
-    source: 'wishlist',
-    description: `${item.energy} 에너지 · ${item.mood}`,
-    ownerType: item.owner_type,
-    ownerUserId: item.owner_user_id,
-  }));
-
-  setRecommendations(courses);
-};
-
-  /* =========================
-   * 위시 없을 경우 AI 더미 추천
-   * ========================= */
-  const generateAICoursesByScore = (score: number): DateCourse[] => {
-    if (score >= 4) {
-      return [
-        {
-          id: 'ai-1',
-          title: '놀이공원 데이트',
-          category: '액티비티',
-          source: 'ai',
-        },
-      ];
+    if (!data || data.length === 0) {
+      setStep('select');
+      return;
     }
-    if (score >= 3) {
-      return [
-        {
-          id: 'ai-2',
-          title: '분위기 좋은 맛집',
-          category: '맛집',
-          source: 'ai',
-        },
-      ];
+
+    const hasMine = data.some(log => log.user_id === uid);
+    const hasBoth = data.length >= 2;
+
+    if (hasBoth) {
+      await loadRecommendations(cid);
+      setStep('result');
+    } else if (hasMine) {
+      setStep('waiting');
+    } else {
+      setStep('select');
     }
-    return [
-      {
-        id: 'ai-3',
-        title: '조용한 카페',
-        category: '카페',
-        source: 'ai',
-      },
-    ];
   };
 
-  const getEmotionEmoji = (code: EmotionCode) => {
-  return EMOTIONS.find(e => e.code === code)?.icon ?? '';
-};
+  const handleEmotionSelect = async (emotion: EmotionCode, score: number) => {
+    if (!userId || !coupleId) return;
 
-const getEmotionLabel = (code: EmotionCode) => {
-  return EMOTIONS.find(e => e.code === code)?.label ?? '';
-};
+    const today = new Date().toISOString().slice(0, 10);
 
-const handleReset = () => {
-  setStep('select');
-  setRecommendations([]);
-  setSelectedEmotion(null);
-};
+    try {
+      setLoading(true);
 
+      const { error } = await supabase
+        .from('emotion_logs')
+        .upsert(
+          {
+            couple_id: coupleId,
+            user_id: userId,
+            emotion_code: emotion,
+            emotion_score: score,
+            date: today,
+          },
+          { onConflict: 'user_id,date' }
+        );
 
-  /* =========================
-   * 감정 선택 화면
-   * ========================= */
+      if (error) throw error;
+
+      const { data: logs } = await supabase
+        .from('emotion_logs')
+        .select('id')
+        .eq('couple_id', coupleId)
+        .eq('date', today);
+
+      if (logs && logs.length >= 2) {
+        await loadRecommendations(coupleId);
+        setStep('result');
+      } else {
+        Alert.alert('상대방을 기다리는 중이에요 💌');
+        setStep('waiting');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('오류', '감정 저장에 실패했어요.');
+    } finally {
+      setLoading(false);
+    }
+
+    setSelectedEmotion(emotion);
+  };
+
+  const loadRecommendations = async (cid: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: wishes, error } = await supabase.rpc(
+      'get_recommended_wishes',
+      {
+        p_couple_id: cid,
+        p_date: today,
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    if (!wishes || wishes.length === 0) {
+      const { data: logs } = await supabase
+        .from('emotion_logs')
+        .select('emotion_score')
+        .eq('couple_id', cid)
+        .eq('date', today);
+
+      const avgScore =
+        logs && logs.length > 0
+          ? logs.reduce((sum, l) => sum + l.emotion_score, 0) / logs.length
+          : 3;
+
+      setRecommendations(generateAICoursesByScore(avgScore));
+      return;
+    }
+
+    const courses: DateCourse[] = wishes.map((item: WishlistItem) => ({
+      id: item.id,
+      title: item.title,
+      category: item.energy,
+      source: 'wishlist',
+      description: `${item.energy} 에너지 · ${item.mood}`,
+      ownerType: item.owner_type,
+      ownerUserId: item.owner_user_id,
+    }));
+
+    setRecommendations(courses);
+  };
+
+  const generateAICoursesByScore = (score: number): DateCourse[] => {
+    if (score >= 4) {
+      return [{ id: 'ai-1', title: '놀이공원 데이트', category: '액티비티', source: 'ai' }];
+    }
+    if (score >= 3) {
+      return [{ id: 'ai-2', title: '분위기 좋은 맛집', category: '맛집', source: 'ai' }];
+    }
+    return [{ id: 'ai-3', title: '조용한 카페', category: '카페', source: 'ai' }];
+  };
+
+  const getEmotionEmoji = (code: EmotionCode) => EMOTIONS.find(e => e.code === code)?.icon ?? '';
+  const getEmotionLabel = (code: EmotionCode) => EMOTIONS.find(e => e.code === code)?.label ?? '';
+
+  const handleReset = () => {
+    setStep('select');
+    setRecommendations([]);
+    setSelectedEmotion(null);
+  };
+
   if (step === 'waiting') {
-  return (
-    <View style={styles.modalOverlay}>
-       <MenuButton />
-      <View style={styles.modalContainer}>
-        <Text style={{ fontSize: 18, fontWeight: '600' }}>
-          💌 {partnerNickname}가 감정을 선택하는 중이에요
-        </Text>
+    return (
+      <View style={styles.modalOverlay}>
+        <MenuButton />
+        <View style={styles.modalContainer}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#FFFFFF' }}>
+            💌 {partnerNickname}가 감정을 선택하는 중이에요
+          </Text>
+        </View>
       </View>
-    </View>
-  );
-}
+    );
+  }
 
   if (step === 'select') {
     return (
       <View style={styles.modalOverlay}>
         <MenuButton />
         <View style={styles.modalContainer}>
-
           <View style={styles.modalHeader}>
             <Text style={styles.modalHeartEmoji}>🩷</Text>
             <Text style={styles.modalTitle}>{myNickname}님 오늘 기분이 어떠세요?</Text>
           </View>
 
           <View style={styles.emojiFrame}>
-            {/* 윗줄: 3개 */}
             <View style={styles.emojiRow}>
-             {EMOTIONS.slice(0, 3).map(({ code, label, icon, score }) => (
-              <TouchableOpacity
-                key={code}
-                onPress={() => handleEmotionSelect(code, score)}
+              {EMOTIONS.slice(0, 3).map(({ code, label, icon, score }) => (
+                <TouchableOpacity
+                  key={code}
+                  onPress={() => handleEmotionSelect(code, score)}
                   activeOpacity={0.7}
                   style={styles.emojiButton}
                 >
@@ -309,7 +247,6 @@ const handleReset = () => {
                 </TouchableOpacity>
               ))}
             </View>
-            {/* 아랫줄: 2개 가운데 정렬 */}
             <View style={[styles.emojiRow, { justifyContent: 'center', gap: 32 }]}>
               {EMOTIONS.slice(3).map(({ code, label, icon, score }) => (
                 <TouchableOpacity
@@ -323,7 +260,6 @@ const handleReset = () => {
                 </TouchableOpacity>
               ))}
             </View>
-
             <Text style={styles.emojiCaption}>
               *감정 분석 결과를 기반으로, 현재 상태에 가장 어울리는 데이트 코스를 추천해드립니다.
             </Text>
@@ -344,10 +280,8 @@ const handleReset = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}> 
-
-        <MenuButton />   
-
+      <View style={styles.header}>
+        <MenuButton />
         <View style={styles.titleContainer}>
           {selectedEmotion && (
             <Text style={styles.emotionEmoji}>{getEmotionEmoji(selectedEmotion)}</Text>
@@ -372,20 +306,20 @@ const handleReset = () => {
                   <View style={styles.courseInfo}>
                     <View style={styles.courseTitleRow}>
                       <Text style={styles.courseTitle}>{course.title}</Text>
-                        <View style={styles.wishlistBadge}>
-                          <Text style={styles.wishlistBadgeText}>
-                            {course.source === 'ai'
-                              ? '🤖 AI'
-                              : `💖 ${
-                                  course.ownerType === 'COUPLE'
-                                    ? '커플'
-                                    : course.ownerUserId === user?.id
-                                      ? myNickname
-                                      : partnerNickname ?? '상대'
-                                }`
-                            }
-                          </Text>
-                        </View>
+                      <View style={styles.wishlistBadge}>
+                        <Text style={styles.wishlistBadgeText}>
+                          {course.source === 'ai'
+                            ? '🤖 AI'
+                            : `💖 ${
+                                course.ownerType === 'COUPLE'
+                                  ? '커플'
+                                  : course.ownerUserId === user?.id
+                                    ? myNickname
+                                    : partnerNickname ?? '상대'
+                              }`
+                          }
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.categoryBadge}>
                       <Text style={styles.courseCategory}>{course.category}</Text>
@@ -415,14 +349,13 @@ const handleReset = () => {
       </View>
     </ScrollView>
   );
-
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -498,15 +431,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
   },
-  backButton: {
-    marginBottom: 16,
-    width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(110,198,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backIcon: { fontSize: 24, color: '#6EC6FF' },
   titleContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   emotionEmoji: { fontSize: 32, marginRight: 12 },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -1 },
