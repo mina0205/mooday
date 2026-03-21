@@ -13,6 +13,17 @@ import {
   Text, TouchableOpacity, View,
 } from 'react-native';
 
+const COLORS = {
+  MY: '#6EC6FF',
+  PARTNER: '#FF9EAA',
+  COUPLE: '#C77DFF',
+  BG: '#000000',
+  CARD: '#1a1a1a',
+  BORDER: '#2a2a2a',
+  TEXT: '#FFFFFF',
+  SUBTEXT: '#888888',
+};
+
 export default function WishlistScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
@@ -29,7 +40,6 @@ export default function WishlistScreen() {
   const [editingWishlist, setEditingWishlist] = useState<WishlistItem | null>(null);
 
   const { myNickname, partnerNickname } = useAuthCouple();
-
 
   useEffect(() => {
     const init = async () => {
@@ -88,10 +98,6 @@ export default function WishlistScreen() {
       setMyWishlists(mine);
       setPartnerWishlists(partner);
       setCoupleWishlists(couple);
-
-      console.log('📊 내 위시:', mine.length);
-      console.log('📊 상대 위시:', partner.length);
-      console.log('📊 커플 위시:', couple.length);
     } catch (e) {
       console.error('❌ 위시리스트 로딩 실패:', e);
     } finally {
@@ -108,8 +114,6 @@ export default function WishlistScreen() {
         title,
         ownerType
       );
-
-      console.log('🎯 위시리스트 추가:', { title, energy, energyScore, mood, ownerType });
 
       if (ownerType === 'PERSONAL') {
         setMyWishlists([newWishlist, ...myWishlists]);
@@ -181,71 +185,200 @@ export default function WishlistScreen() {
   };
 
   const openAddModal = (ownerType: OwnerType) => {
+    setEditingWishlist(null);
     setModalOwnerType(ownerType);
     setModalVisible(true);
   };
 
-  if (loading) return <View style={styles.centerContainer}><ActivityIndicator size="large" color="#6EC6FF" /></View>;
-  if (!userId) return <View style={styles.centerContainer}><Text style={styles.emptyText}>로그인이 필요합니다</Text></View>;
+  if (loading) return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={COLORS.MY} />
+    </View>
+  );
+
+  if (!userId) return (
+    <View style={styles.loadingContainer}>
+      <Text style={styles.loadingText}>로그인이 필요합니다</Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <MenuButton />
 
-      <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <GradientHeart size={28} />
-          <Text style={styles.headerTitle}>{coupleId ? '우리만의 위시리스트' : '나만의 위시리스트'}</Text>
-        </View>
-        <Text style={styles.subtitle}>{coupleId ? '함께 하고 싶은 데이트를 추가해보세요' : '하고 싶은 데이트를 추가해보세요'}</Text>
-      </View>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.mySection]}>
+        {/* 헤더 - 캘린더와 동일한 스타일 */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>위시리스트</Text>
+          <Text style={styles.headerSub}>
+            {coupleId ? '함께 하고 싶은 데이트를 추가해보세요' : '하고 싶은 데이트를 추가해보세요'}
+          </Text>
+        </View>
+
+        {/* 범례 - 캘린더와 동일 */}
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.MY }]} />
+            <Text style={styles.legendText}>나</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.PARTNER }]} />
+            <Text style={styles.legendText}>상대</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.COUPLE }]} />
+            <Text style={styles.legendText}>커플</Text>
+          </View>
+        </View>
+
+        {/* 내 위시 섹션 */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.redHeartIcon}>♥</Text>
+              <View style={[styles.sectionDot, { backgroundColor: COLORS.MY }]} />
               <Text style={styles.sectionTitle}>{myNickname}의 위시</Text>
             </View>
-            <TouchableOpacity style={styles.addButton} onPress={() => openAddModal('PERSONAL')}>
-              <Text style={styles.addButtonText}>+</Text>
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => openAddModal('PERSONAL')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.addBtnText}>＋</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.sectionContent}>
-            {myWishlists.length === 0 ? <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text> :
-              myWishlists.map(item => <WishlistCard key={item.id} item={item} onDelete={handleDeleteWishlist} onPress={handleEditWishlist} currentUserId={userId || undefined} />)}
-          </View>
+
+          {myWishlists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            </View>
+          ) : (
+            <View style={styles.wishlistItems}>
+              {myWishlists.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.wishItem, { borderLeftColor: COLORS.MY }]}
+                  onPress={() => handleEditWishlist(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.wishItemContent}>
+                    <Text style={styles.wishItemTitle}>{item.title}</Text>
+                    <View style={styles.wishItemBadgeRow}>
+                      <View style={[styles.wishItemBadge, { backgroundColor: 'rgba(110,198,255,0.15)' }]}>
+                        <Text style={[styles.wishItemBadgeText, { color: COLORS.MY }]}>개인</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteWishlist(item.id)}
+                    style={styles.deleteIconBtn}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteIcon}>✕</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.partnerSection]}>
+        {/* 상대 위시 섹션 */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.blueHeartIcon}>♥</Text>
+              <View style={[styles.sectionDot, { backgroundColor: COLORS.PARTNER }]} />
               <Text style={styles.sectionTitle}>{partnerNickname}의 위시</Text>
             </View>
           </View>
-          <View style={styles.sectionContent}>
-            {partnerWishlists.length === 0 ? <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text> :
-              partnerWishlists.map(item => <WishlistCard key={item.id} item={item} onDelete={handleDeleteWishlist} onPress={handleEditWishlist} currentUserId={userId || undefined} />)}
-          </View>
+
+          {partnerWishlists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>💌</Text>
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            </View>
+          ) : (
+            <View style={styles.wishlistItems}>
+              {partnerWishlists.map(item => (
+                <View
+                  key={item.id}
+                  style={[styles.wishItem, { borderLeftColor: COLORS.PARTNER }]}
+                >
+                  <View style={styles.wishItemContent}>
+                    <Text style={styles.wishItemTitle}>{item.title}</Text>
+                    <View style={styles.wishItemBadgeRow}>
+                      <View style={[styles.wishItemBadge, { backgroundColor: 'rgba(255,158,170,0.15)' }]}>
+                        <Text style={[styles.wishItemBadgeText, { color: COLORS.PARTNER }]}>개인</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, styles.coupleSection]}>
+        {/* 커플 위시 섹션 */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <GradientHeart size={24} />
+              <View style={[styles.sectionDot, { backgroundColor: COLORS.COUPLE }]} />
               <Text style={styles.sectionTitle}>우리의 위시리스트</Text>
             </View>
-            <TouchableOpacity style={styles.addButton} onPress={() => openAddModal('COUPLE')}>
-              <Text style={styles.addButtonText}>+</Text>
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => openAddModal('COUPLE')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.addBtnText}>＋</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.sectionContent}>
-            {coupleWishlists.length === 0 ? <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text> :
-              coupleWishlists.map(item => <WishlistCard key={item.id} item={item} onDelete={handleDeleteWishlist} onPress={handleEditWishlist} currentUserId={userId || undefined} />)}
-          </View>
+
+          {coupleWishlists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>💜</Text>
+              <Text style={styles.emptyText}>아직 위시리스트가 없어요</Text>
+            </View>
+          ) : (
+            <View style={styles.wishlistItems}>
+              {coupleWishlists.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.wishItem, { borderLeftColor: COLORS.COUPLE }]}
+                  onPress={() => handleEditWishlist(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.wishItemContent}>
+                    <Text style={styles.wishItemTitle}>{item.title}</Text>
+                    <View style={styles.wishItemBadgeRow}>
+                      <View style={[styles.wishItemBadge, { backgroundColor: 'rgba(199,125,255,0.15)' }]}>
+                        <Text style={[styles.wishItemBadgeText, { color: COLORS.COUPLE }]}>커플</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteWishlist(item.id)}
+                    style={styles.deleteIconBtn}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteIcon}>✕</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
+
+        <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* FAB - 캘린더와 동일 */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => openAddModal('PERSONAL')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabText}>＋</Text>
+      </TouchableOpacity>
 
       <AddWishlistModal
         visible={modalVisible}
@@ -261,24 +394,199 @@ export default function WishlistScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#000000', padding: 20, paddingTop: 60, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  titleContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', marginLeft: 12 },
-  subtitle: { fontSize: 14, color: '#FFFFFF', marginLeft: 40 },
-  content: { flex: 1 },
-  section: { margin: 16, marginBottom: 8, borderRadius: 16, backgroundColor: 'white', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, overflow: 'hidden' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 2 },
-  mySection: { borderBottomColor: '#FFB088', backgroundColor: '#FFF5F0' },
-  partnerSection: { borderBottomColor: '#6EC6FF', backgroundColor: '#F0F8FF' },
-  coupleSection: { borderBottomColor: '#E8B4FF', backgroundColor: '#FFF5FB' },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  redHeartIcon: { fontSize: 20, marginRight: 8, color: '#F58A7A' },
-  blueHeartIcon: { fontSize: 20, marginRight: 8, color: '#6EC6FF' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
-  addButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
-  addButtonText: { fontSize: 24, fontWeight: '300', color: '#333' },
-  sectionContent: { padding: 16 },
-  emptyText: { fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.BG,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.BG,
+  },
+  loadingText: {
+    color: COLORS.SUBTEXT,
+    fontSize: 16,
+  },
+  scroll: {
+    flex: 1,
+  },
+
+  // 헤더 - 캘린더와 동일
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 70,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: COLORS.TEXT,
+    letterSpacing: -1,
+  },
+  headerSub: {
+    fontSize: 14,
+    color: COLORS.SUBTEXT,
+    marginTop: 4,
+  },
+
+  // 범례 - 캘린더와 동일
+  legend: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    marginTop: 16,
+    gap: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 12,
+    color: COLORS.SUBTEXT,
+  },
+
+  // 섹션 카드 - 캘린더의 calendarCard 스타일 기반
+  sectionCard: {
+    backgroundColor: COLORS.CARD,
+    borderRadius: 24,
+    marginHorizontal: 24,
+    marginTop: 16,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+  },
+  addBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.BORDER,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addBtnText: {
+    fontSize: 20,
+    color: COLORS.TEXT,
+    fontWeight: '300',
+    lineHeight: 24,
+  },
+
+  // 빈 상태
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingBottom: 32,
+  },
+  emptyEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.SUBTEXT,
+  },
+
+  // 위시 아이템 리스트
+  wishlistItems: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  wishItem: {
+    backgroundColor: COLORS.BORDER,
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  wishItemContent: {
+    flex: 1,
+  },
+  wishItemTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.TEXT,
+    marginBottom: 6,
+  },
+  wishItemBadgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  wishItemBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  wishItemBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  deleteIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  deleteIcon: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '400',
+  },
+
+  // FAB - 캘린더와 동일
+  fab: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.MY,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.MY,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  fabText: {
+    fontSize: 28,
+    color: '#000',
+    fontWeight: '300',
+    lineHeight: 32,
+  },
 });

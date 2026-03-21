@@ -3,6 +3,17 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
+const COLORS = {
+  MY: '#6EC6FF',
+  PARTNER: '#FF9EAA',
+  COUPLE: '#C77DFF',
+  BG: '#000000',
+  CARD: '#1a1a1a',
+  BORDER: '#2a2a2a',
+  TEXT: '#FFFFFF',
+  SUBTEXT: '#888888',
+};
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,26 +32,23 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* 배경 장식 원 */}
-      <View style={styles.bgCircle1} />
-      <View style={styles.bgCircle2} />
+      {/* 배경 장식 - 다크 테마용 미묘한 글로우 */}
+      <View style={styles.bgGlow1} />
+      <View style={styles.bgGlow2} />
 
       <View style={styles.inner}>
 
         {/* 로고 영역 */}
         <View style={styles.logoArea}>
-          <Text style={styles.logoEmoji}>🩷</Text>
-
           <Text style={styles.logoTitle}>MOODAY</Text>
-
-          <Text style={styles.logoSub}>우리만의 특별한 하루</Text>
+          <Text style={styles.logoSub}>우리의 공유 캘린더</Text>
         </View>
 
         {/* 카드 */}
         <View style={styles.card}>
           <TextInput
             placeholder="이메일"
-            placeholderTextColor="#bbb"
+            placeholderTextColor="#555"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -49,7 +57,7 @@ export default function LoginScreen() {
           />
           <TextInput
             placeholder="비밀번호"
-            placeholderTextColor="#bbb"
+            placeholderTextColor="#555"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
@@ -81,8 +89,6 @@ export default function LoginScreen() {
             <Text style={styles.signupBtnText}>처음이에요, 회원가입</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.footer}>함께하는 매일이 특별해져요 💙</Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -91,25 +97,25 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF8FA',
+    backgroundColor: COLORS.BG,
   },
-  bgCircle1: {
+  bgGlow1: {
     position: 'absolute',
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: '#6EC6FF',
-    opacity: 0.12,
+    backgroundColor: COLORS.MY,
+    opacity: 0.06,
     top: -80,
     right: -80,
   },
-  bgCircle2: {
+  bgGlow2: {
     position: 'absolute',
     width: 250,
     height: 250,
     borderRadius: 125,
-    backgroundColor: '#F58A7A',
-    opacity: 0.12,
+    backgroundColor: COLORS.PARTNER,
+    opacity: 0.06,
     bottom: -60,
     left: -60,
   },
@@ -123,56 +129,50 @@ const styles = StyleSheet.create({
     marginBottom: 36,
     gap: 10,
   },
-  logoEmoji: {
-    fontSize: 64,
-  },
   logoTitle: {
     fontSize: 48,
     fontWeight: '900',
-    color: '#F58A7A',
+    color: COLORS.MY,
     letterSpacing: 6,
     marginTop: 8,
   },
   logoSub: {
     fontSize: 14,
-    color: '#aaa',
+    color: COLORS.SUBTEXT,
     letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.CARD,
     borderRadius: 24,
     padding: 28,
-    shadowColor: '#F58A7A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
   },
   input: {
-    backgroundColor: '#FFF3F5',
-    borderRadius: 14,
+    backgroundColor: COLORS.BORDER,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    color: '#333',
+    color: COLORS.TEXT,
     marginBottom: 14,
-    borderWidth: 1.5,
-    borderColor: '#FFD6E0',
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
   },
   loginBtn: {
-    backgroundColor: '#F58A7A',
-    borderRadius: 14,
+    backgroundColor: COLORS.MY,
+    borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
     marginTop: 4,
-    shadowColor: '#F58A7A',
+    shadowColor: COLORS.MY,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 5,
   },
   loginBtnText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -185,30 +185,24 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#F0D6DD',
+    backgroundColor: COLORS.BORDER,
   },
   dividerText: {
-    color: '#ccc',
+    color: '#555',
     fontSize: 13,
     marginHorizontal: 12,
   },
   signupBtn: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: 'transparent',
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#6EC6FF',
+    borderWidth: 1,
+    borderColor: COLORS.MY,
   },
   signupBtnText: {
-    color: '#6EC6FF',
+    color: COLORS.MY,
     fontSize: 15,
     fontWeight: '600',
-  },
-  footer: {
-    textAlign: 'center',
-    color: '#ccc',
-    fontSize: 13,
-    marginTop: 28,
   },
 });

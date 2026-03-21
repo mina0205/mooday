@@ -206,7 +206,7 @@ export default function HomeTab() {
 
         {/* 헤더 */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>우리의 캘린더</Text>
+          <Text style={styles.headerTitle}>캘린더</Text>
           <Text style={styles.headerSub}>{currentYear}년 {MONTHS[currentMonth]}</Text>
         </View>
 
